@@ -16,30 +16,34 @@ contract LiquidityPool is ERC20 {
         uint256 amount;
         uint256 interest;
         uint256 startTime;
-        bool repaid;
     }
-    mapping(address => Loan) public loans;
+
+    mapping(address => mapping(uint256 => Loan)) public loans;
 
     event Deposited(address indexed user, uint256 amount, uint256 shares);
     event Withdrawn(address indexed user, uint256 amount, uint256 shares);
     event Loaned(address indexed user, uint256 amount, uint256 interest);
     event Repaid(address indexed user, uint256 amount, uint256 interest);
+    event Locked(address indexed user, uint256 shares, uint256 amount);
+
+    mapping(address => uint256) public locked; 
 
     address public immutable factory;
+    address public port;
 
-    constructor(address _asset, uint256 _feeRate) ERC20("PoolToken", "PTK") {
+    constructor(address _port, address _asset, uint256 _feeRate) ERC20("PoolToken", "PTK") {
         asset = IERC20(_asset);
         feeRate = _feeRate;
         interestRate = 2000; // 20%
         lastAccrual = block.timestamp;
         factory = msg.sender;
+        port = _port; 
     }
 
     // Called before every deposit/withdraw/loan/repay to update pool state
     function accrueInterest() public {
         uint256 elapsed = block.timestamp - lastAccrual;
         if (elapsed == 0 || totalLoans == 0) {
-            lastAccrual = block.timestamp;
             return;
         }
         // Linear interest accrual: principal * rate * time / (10000 * 365 days)
@@ -47,6 +51,18 @@ contract LiquidityPool is ERC20 {
         totalAccruedInterest += interest;
         lastAccrual = block.timestamp;
     }
+
+    function lock(address user, uint256 amount) external {
+        require(msg.sender == port, "Only port can lock collateral");
+        require(amount > 0, "Amount must be greater than zero");
+        require(asset.balanceOf(user) >= amount, "Insufficient balance");
+        locked[user] += amount;
+        uint256 poolBalance = asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest;
+        uint256 shares = amount * (poolBalance / totalSupply());
+        transferFrom(user, address(this), shares);
+        emit Locked(user, shares, amount);
+    }
+
 
     function deposit(uint256 amount) external {
         require(amount > 0, "Amount must be greater than zero");
@@ -69,57 +85,77 @@ contract LiquidityPool is ERC20 {
         emit Withdrawn(msg.sender, amount, shares);
     }
 
-    function loanTo(uint256 amount) external {
-        accrueInterest();
-        require(asset.balanceOf(address(this)) >= amount, "Insufficient pool");
-        require(loans[msg.sender].amount == 0 || loans[msg.sender].repaid, "Outstanding loan exists");
-        uint256 interest = (amount * interestRate) / 10000;
-        loans[msg.sender] = Loan(amount, interest, block.timestamp, false);
-        totalLoans += amount;
-        asset.transfer(msg.sender, amount);
-        emit Loaned(msg.sender, amount, interest);
+    function setPort(address _port) external /* onlyOwner or other access control */ {
+        port = _port;
     }
 
-    function repayFrom(uint256 repayAmount) external {
+    function loanTo(uint256 chainId, address to, uint256 amount) external {
+        require(msg.sender == port, "Only port can call loanTo");
         accrueInterest();
-        Loan storage loan = loans[msg.sender];
-        require(!loan.repaid, "Already repaid");
-        require(repayAmount > 0, "Repay amount must be greater than zero");
-        uint256 totalOwed = loan.amount + loan.interest;
-        require(repayAmount <= totalOwed, "Repay amount exceeds debt");
+        require(asset.balanceOf(address(this)) >= amount, "Insufficient pool");
 
-        // Calculate how much is principal and how much is interest
-        uint256 principalPaid;
-        uint256 interestPaid;
-        if (repayAmount <= loan.interest) {
-            principalPaid = 0;
-            interestPaid = repayAmount;
-            loan.interest -= repayAmount;
+        Loan storage loan = loans[to][chainId];
+        uint256 interest = (amount * interestRate) / 10000;
+
+        // If a loan record exists, calculate and accumulate existing interest, and reset startTime
+        if (loan.amount > 0) {
+            uint256 elapsed = block.timestamp - loan.startTime;
+            if (elapsed > 0) {
+                uint256 accrued = (loan.amount * interestRate * elapsed) / (10000 * 365 days);
+                loan.interest += accrued;
+            }
+            loan.startTime = block.timestamp;
+            loan.amount += amount;
+            loan.interest += interest;
         } else {
-            interestPaid = loan.interest;
-            principalPaid = repayAmount - loan.interest;
-            loan.interest = 0;
+            loans[to][chainId] = Loan(amount, interest, block.timestamp);
+        }
+
+        totalLoans += amount;
+        asset.transfer(to, amount);
+        emit Loaned(to, amount, interest);
+    }
+
+    function repayFor(uint256 chainId, address from, uint256 amount) external {
+        require(msg.sender == port, "Only port can call repayFrom");
+        accrueInterest();
+
+        Loan storage loan = loans[from][chainId];
+        require(amount > 0, "Repay amount must be greater than zero");
+
+        // Recalculate and accumulate interest before repayment
+        if (loan.amount > 0) {
+            uint256 elapsed = block.timestamp - loan.startTime;
+            if (elapsed > 0) {
+                uint256 accrued = (loan.amount * interestRate * elapsed) / (10000 * 365 days);
+                loan.interest += accrued;
+                loan.startTime = block.timestamp;
+            }
+        }
+
+        uint256 totalOwed = loan.amount + loan.interest;
+        require(amount <= totalOwed, "Repay amount exceeds debt");
+
+        // Repay interest first, then principal
+        uint256 interestPaid = amount > loan.interest ? loan.interest : amount;
+        uint256 principalPaid = amount > loan.interest ? amount - loan.interest : 0;
+
+        loan.interest -= interestPaid;
+        if (principalPaid > 0) {
             loan.amount -= principalPaid;
+            totalLoans -= principalPaid;
         }
 
         // Fee is only charged on the interest paid
         uint256 fee = (interestPaid * feeRate) / 10000;
         if (fee > 0) {
-            asset.transferFrom(msg.sender, factory, fee);
+            asset.transferFrom(from, factory, fee);
             totalAccruedInterest -= fee;
         }
-        // The rest goes to the pool
-        uint256 poolPortion = repayAmount - fee;
-        asset.transferFrom(msg.sender, address(this), poolPortion);
+        // The remaining portion goes to the pool
+        uint256 poolPortion = amount - fee;
+        asset.transferFrom(from, address(this), poolPortion);
 
-        // If fully repaid, mark as repaid and update totalLoans
-        if (loan.amount == 0 && loan.interest == 0) {
-            loan.repaid = true;
-            totalLoans -= principalPaid;
-        } else if (principalPaid > 0) {
-            totalLoans -= principalPaid;
-        }
-
-        emit Repaid(msg.sender, principalPaid, interestPaid);
+        emit Repaid(from, principalPaid, interestPaid);
     }
 }
