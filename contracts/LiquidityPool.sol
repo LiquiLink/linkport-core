@@ -13,12 +13,13 @@ contract LiquidityPool is ERC20 {
     uint256 public totalAccruedInterest; // total accrued interest for all outstanding loans
 
     struct Loan {
+        uint256 tokenAmount;
         uint256 amount;
         uint256 interest;
         uint256 startTime;
     }
 
-    mapping(address => mapping(uint256 => Loan)) public loans;
+    mapping(address => mapping(uint256 => mapping (address  => Loan))) public loans;
 
     event Deposited(address indexed user, uint256 amount, uint256 shares);
     event Withdrawn(address indexed user, uint256 amount, uint256 shares);
@@ -89,12 +90,12 @@ contract LiquidityPool is ERC20 {
         port = _port;
     }
 
-    function loanTo(uint256 chainId, address to, uint256 amount) external {
+    function loanTo(uint256 chainId,address token, uint256 tokenAmount, address to, uint256 amount) external {
         require(msg.sender == port, "Only port can call loanTo");
         accrueInterest();
         require(asset.balanceOf(address(this)) >= amount, "Insufficient pool");
 
-        Loan storage loan = loans[to][chainId];
+        Loan storage loan = loans[to][chainId][token];
         uint256 interest = (amount * interestRate) / 10000;
 
         // If a loan record exists, calculate and accumulate existing interest, and reset startTime
@@ -105,10 +106,11 @@ contract LiquidityPool is ERC20 {
                 loan.interest += accrued;
             }
             loan.startTime = block.timestamp;
+            loan.tokenAmount += tokenAmount;
             loan.amount += amount;
             loan.interest += interest;
         } else {
-            loans[to][chainId] = Loan(amount, interest, block.timestamp);
+            loans[to][chainId][token] = Loan(tokenAmount, amount, interest, block.timestamp);
         }
 
         totalLoans += amount;
@@ -116,11 +118,11 @@ contract LiquidityPool is ERC20 {
         emit Loaned(to, amount, interest);
     }
 
-    function repayFor(uint256 chainId, address from, uint256 amount) external {
+    function repayFor(uint256 chainId, address token, address from, uint256 amount) external {
         require(msg.sender == port, "Only port can call repayFrom");
         accrueInterest();
 
-        Loan storage loan = loans[from][chainId];
+        Loan storage loan = loans[from][chainId][token];
         require(amount > 0, "Repay amount must be greater than zero");
 
         // Recalculate and accumulate interest before repayment

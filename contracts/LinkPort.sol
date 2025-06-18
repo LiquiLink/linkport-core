@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "./PoolFactory.sol";
 import "./LiquidityPool.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
 import {IAny2EVMMessageReceiver} from "@chainlink/contracts-ccip/contracts/interfaces/IAny2EVMMessageReceiver.sol";
 import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
@@ -78,7 +78,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         // Add access control as needed
         LiquidityPool pool = LiquidityPool(factory.getPool(token));
         require(address(pool) != address(0), "Pool not found");
-        pool.repayFor(chainId, msg.sender, amount);
+        pool.repayFor(chainId, token,  msg.sender, amount);
         address[] memory tokens = new address[](1);
         tokens[0] = token;
         uint256[] memory amounts = new uint256[](1);
@@ -157,7 +157,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
             require(tokens.length == amount.length, "Length mismatch");
             for (uint256 i = 0; i < tokens.length; i++) {
                 LiquidityPool pool = LiquidityPool(factory.getPool(tokens[i]));
-                pool.loanTo(chainId, user, amount[i]);
+                pool.loanTo(chainId, collateralToken, collateralAmount, user, amount[i]);
                 emit TokenLoan(user, tokens[i], amount[i]);
             }
         } else if (msgType == 2) {
