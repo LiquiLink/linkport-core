@@ -21,7 +21,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
 
     event TokenLoan(address indexed user, address indexed token, uint256 amount);
 
-    constructor(address _factory, address _ccipRouter, uint64 _targetChainSelector) Ownable(msg.sender) {
+    constructor(address _factory, address _ccipRouter, uint64 _targetChainSelector) Ownable() {
         factory = PoolFactory(_factory);
         ccipRouter = IRouterClient(_ccipRouter);
         targetChainSelector = _targetChainSelector;

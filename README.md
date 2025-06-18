@@ -1,56 +1,36 @@
-# Chainlink DeFi CCIP Project
+# Web3 Multi-Token Wallet
 
-## Overview
-The Chainlink DeFi CCIP project aims to facilitate cross-chain asset bridging and lending without the need for native tokens for gas fees. Users can deposit tokens on one chain and withdraw equivalent assets on another chain, leveraging Chainlink's Cross-Chain Interoperability Protocol (CCIP) for seamless messaging and transactions.
+This project implements a multi-token wallet on the Ethereum blockchain using Solidity and Hardhat. The wallet supports multiple cryptocurrencies and provides functionalities for depositing, withdrawing, and transferring tokens between users. Additionally, it includes a mechanism to verify an administrator's signature for transfers.
 
 ## Features
-- **Cross-Chain Messaging**: Utilizes Chainlink CCIP to send and receive messages between different blockchains.
-- **Liquidity Pool Management**: Users can deposit and withdraw tokens from a liquidity pool, with fees calculated based on the amount borrowed.
-- **Liquidation Mechanism**: Automatically triggers liquidation for users who fail to repay their borrowed amounts, ensuring the sustainability of the liquidity pool.
-- **Token Whitelisting**: Maintains a whitelist of tokens that can be used for bridging and liquidity pool operations.
+
+- **Multi-Token Support**: Users can deposit and withdraw various ERC20 tokens.
+- **Transfer Functionality**: Users can transfer tokens to other users after verifying the administrator's signature.
+- **Signature Verification**: Ensures that only authorized transfers are executed.
 
 ## Project Structure
+
 ```
-chainlink-defi-ccip
+web3-multitoken-wallet
 ├── contracts
-│   ├── CCIPMsgBridge.sol
-│   ├── LiquidityPool.sol
-│   ├── Liquidation.sol
-│   └── TokenWhitelist.sol
+│   ├── MultiTokenWallet.sol       # Solidity smart contract for the wallet
 ├── scripts
-│   └── deploy.js
+│   ├── deploy.ts                  # Script to deploy the contract
+│   └── interact.ts                # Script to interact with the deployed contract
 ├── test
-│   ├── CCIPMsgBridge.test.js
-│   ├── LiquidityPool.test.js
-│   └── Liquidation.test.js
-├── frontend
-│   ├── components
-│   │   └── BridgeForm.tsx
-│   ├── pages
-│   │   ├── index.tsx
-│   │   └── dashboard.tsx
-│   ├── styles
-│   │   └── tailwind.css
-│   └── utils
-│       └── api.ts
-├── hardhat.config.js
-├── package.json
-├── README.md
-└── next.config.js
+│   └── MultiTokenWallet.test.ts   # Test cases for the contract
+├── hardhat.config.ts              # Hardhat configuration file
+├── package.json                   # npm configuration file
+├── tsconfig.json                  # TypeScript configuration file
+└── README.md                      # Project documentation
 ```
 
-## Getting Started
+## Installation
 
-### Prerequisites
-- Node.js and npm installed
-- Hardhat installed globally
-- Access to Ethereum and Binance Smart Chain networks
-
-### Installation
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/chainlink-defi-ccip.git
-   cd chainlink-defi-ccip
+   git clone https://github.com/yourusername/web3-multitoken-wallet.git
+   cd web3-multitoken-wallet
    ```
 
 2. Install dependencies:
@@ -58,28 +38,34 @@ chainlink-defi-ccip
    npm install
    ```
 
-### Deployment
-To deploy the smart contracts, run the following command:
-```
-npx hardhat run scripts/deploy.js --network <network_name>
-```
-Replace `<network_name>` with the desired network (e.g., mainnet, testnet).
+3. Compile the contracts:
+   ```
+   npx hardhat compile
+   ```
 
-### Running the Frontend
-To start the frontend application, navigate to the `frontend` directory and run:
+## Deployment
+
+To deploy the MultiTokenWallet contract to the Ethereum network, run the following command:
 ```
-npm run dev
+npx hardhat run scripts/deploy.ts --network <network_name>
 ```
-Access the application at `http://localhost:3000`.
+Replace `<network_name>` with the desired Ethereum network (e.g., rinkeby, mainnet).
+
+## Usage
+
+After deploying the contract, you can interact with it using the `interact.ts` script. This script allows you to:
+
+- Deposit tokens into the wallet.
+- Withdraw tokens from the wallet.
+- Transfer tokens between users with administrator signature verification.
 
 ## Testing
-To run the tests for the smart contracts, execute:
+
+To run the test cases for the MultiTokenWallet contract, use the following command:
 ```
 npx hardhat test
 ```
 
-## Contributing
-Contributions are welcome! Please open an issue or submit a pull request for any enhancements or bug fixes.
-
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+
+This project is licensed under the MIT License. See the LICENSE file for more details.
