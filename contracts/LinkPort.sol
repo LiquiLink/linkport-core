@@ -12,7 +12,6 @@ import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     PoolFactory public factory;
     IRouterClient public ccipRouter;
-    uint64 public targetChainSelector; // Set this for your destination chain
 
     // Mapping for Chainlink price feeds
     mapping(address => address) public priceFeeds;
@@ -20,11 +19,11 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     mapping(uint256 => address) public ports;
 
     event TokenLoan(address indexed user, address indexed token, uint256 amount);
+    event PortSet(uint256 indexed chainId, address indexed port);
 
-    constructor(address _factory, address _ccipRouter, uint64 _targetChainSelector) Ownable() {
+    constructor(address _factory, address _ccipRouter) Ownable() {
         factory = PoolFactory(_factory);
         ccipRouter = IRouterClient(_ccipRouter);
-        targetChainSelector = _targetChainSelector;
     }
 
     function setPriceFeed(address token, address feed) external {
@@ -33,8 +32,8 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     }
 
     function setPort(uint256 chainId, address port) external onlyOwner {
-        // Only owner, add modifier as needed
         ports[chainId] = port;
+        emit PortSet(chainId, port);
     }
 
     function getTokenPrice(address token) public view returns (uint256 price) {
@@ -45,7 +44,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     }
 
     function loan(
-        uint256 chainId,
+        uint64 chainId,
         address collateralToken,
         uint256 collateralAmount,
         address[] calldata borrowTokens,
@@ -74,7 +73,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         sendCCIPLoanMsg(chainId, 1, msg.sender, borrowTokens, borrowAmounts, collateralToken, collateralAmount);
     }
 
-    function repay(uint256 chainId, address token, uint256 amount) external {
+    function repay(uint64 chainId, address token, uint256 amount) external {
         // Add access control as needed
         LiquidityPool pool = LiquidityPool(factory.getPool(token));
         require(address(pool) != address(0), "Pool not found");
@@ -87,7 +86,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     }
 
     function sendCCIPRepayMsg(
-        uint256 chainId,
+        uint64 chainId,
         uint256 msgType, // 1 loan, 2 repay, 3 repayFor
         address user,
         address[] memory tokens,
@@ -112,11 +111,11 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         // (uint256 fee,) = ccipRouter.getFee(targetChainSelector, evm2AnyMsg);
 
         // Send the message
-        ccipRouter.ccipSend{value: msg.value}(targetChainSelector, evm2AnyMsg);
+        ccipRouter.ccipSend{value: msg.value}(chainId, evm2AnyMsg);
     }
 
     function sendCCIPLoanMsg(
-        uint256 chainId,
+        uint64 chainId,
         uint256 msgType, // 1 loan, 2 repay, 3  repayFor
         address user,
         address[] memory tokens,
@@ -143,7 +142,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         // (uint256 fee,) = ccipRouter.getFee(targetChainSelector, evm2AnyMsg);
 
         // Send the message
-        ccipRouter.ccipSend{value: msg.value}(targetChainSelector, evm2AnyMsg);
+        ccipRouter.ccipSend{value: msg.value}(chainId, evm2AnyMsg);
     }
 
     function ccipReceive(Client.Any2EVMMessage calldata message) external override {

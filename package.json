@@ -11,7 +11,9 @@
   "dependencies": {
     "@chainlink/contracts": "0.3.1",
     "@chainlink/contracts-ccip": "1.6.0",
+    "@chainlink/local": "^0.2.5-beta.0",
     "@openzeppelin/contracts": "4.1.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "dotenv": "^8.0.0",
     "ethers": "^5.0.0",
     "hardhat": "^2.0.0"

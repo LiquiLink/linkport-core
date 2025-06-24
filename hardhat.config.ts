@@ -14,12 +14,16 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    sepolia: {
-      url: process.env.LINKPORT_SEPOLIA_URL || "",
+    ethereumSepolia: {
+      url: process.env.ETHEREUM_SEPOLIA_RPC_URL || "",
       accounts: process.env.LINKPORT_PRIVATE_KEY !== undefined ? [process.env.LINKPORT_PRIVATE_KEY] : [],
     },
-    mainnet: {
-      url: process.env.LINKPORT_MAINNET_URL || "",
+    arbitrumSepolia: {
+      url: process.env.ARBITRUM_SEPOLIA_RPC_URL|| "",
+      accounts: process.env.LINKPORT_PRIVATE_KEY !== undefined ? [process.env.LINKPORT_PRIVATE_KEY] : [],
+    },
+    bnbtestnet: {
+      url: process.env.LINKPORT_BNBTESTNET_URL || "",
       accounts: process.env.LINKPORT_PRIVATE_KEY !== undefined ? [process.env.LINKPORT_PRIVATE_KEY] : [],
     },
   },
