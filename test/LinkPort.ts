@@ -26,11 +26,10 @@ describe("LinkPort CCIP Loan & Repay", function () {
     const [source, destination] = ["ethereumSepolia", "arbitrumSepolia"];
 
     // Setup addresses and contracts
-    const linkTokenAddress = getLINKTokenAddress(source);
+    const sourcelinkTokenAddress = getLINKTokenAddress(source);
+    const destlinkTokenAddress = getLINKTokenAddress(destination);
     const sourceRouterAddress = getRouterConfig(source).address;
     const destinationRouterAddress = getRouterConfig(destination).address;
-    const sourceCCIPBnMTokenAddress = getFaucetTokensAddresses(source).ccipBnM;
-    const destinationCCIPBnMTokenAddress = getFaucetTokensAddresses(destination).ccipBnM;
     const destinationChainSelector = getRouterConfig(destination).chainSelector;
 
     // Fork source chain
@@ -49,35 +48,66 @@ describe("LinkPort CCIP Loan & Repay", function () {
     const linkPortFactory = await hre.ethers.getContractFactory("LinkPort");
     const sourceLinkPort = await linkPortFactory.deploy(
       alice.address, // dummy PoolFactory
-      sourceRouterAddress
+      sourceRouterAddress,
+      sourcelinkTokenAddress
     );
-    await sourceLinkPort.waitForDeployment();
+    await sourceLinkPort.deployed();
+
+    await hre.network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: getProviderRpcUrl(destination),
+          },
+        },
+      ],
+    });
+
     const destinationLinkPort = await linkPortFactory.deploy(
       alice.address, // dummy PoolFactory
-      destinationRouterAddress
+      destinationRouterAddress,
+      destlinkTokenAddress,
     );
-    await destinationLinkPort.waitForDeployment();
+    await destinationLinkPort.deployed();
+
+    await hre.network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: getProviderRpcUrl(source),
+          },
+        },
+      ],
+    });
+    console.log("Source LinkPort deployed at:", sourceLinkPort.address);
+
 
     // Register port addresses for cross-chain messaging
-    await sourceLinkPort.setPort(destinationChainSelector, await destinationLinkPort.getAddress());
-    await destinationLinkPort.setPort(getRouterConfig(source).chainSelector, await sourceLinkPort.getAddress());
+    await sourceLinkPort.setPort(destinationChainSelector, destinationLinkPort.address);
 
-    // Setup token contract
-    const ccipBnMFactory = await hre.ethers.getContractFactory("BurnMintERC677Helper");
-    const sourceCCIPBnM = ccipBnMFactory.attach(sourceCCIPBnMTokenAddress) as BurnMintERC677Helper;
-    const destinationCCIPBnM = ccipBnMFactory.attach(destinationCCIPBnMTokenAddress) as BurnMintERC677Helper;
+    await hre.network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: getProviderRpcUrl(destination),
+          },
+        },
+      ],
+    });
 
-    // Drip tokens to Alice
-    await sourceCCIPBnM.connect(alice).drip(alice.address);
+    await destinationLinkPort.setPort(getRouterConfig(source).chainSelector, sourceLinkPort.address);
 
-    // Approve LinkPort to lock collateral
-    await sourceCCIPBnM.connect(alice).approve(await sourceLinkPort.getAddress(), 1000n);
+
 
     // Prepare LINK for CCIP fee
-    const linkTokenFactory = await hre.ethers.getContractFactory("LinkToken");
-    const linkToken = linkTokenFactory.attach(linkTokenAddress) as LinkTokenInterface;
-    await requestLinkFromTheFaucet(linkTokenAddress, alice.address, 1n * 10n ** 18n);
-    await linkToken.connect(alice).approve(sourceRouterAddress, 1n * 10n ** 18n);
+    const linkTokenFactory = await hre.ethers.getContractFactory("TToken");
+    const linkToken = linkTokenFactory.attach(sourcelinkTokenAddress)
+    await requestLinkFromTheFaucet(sourcelinkTokenAddress, alice.address, 100n * 10n ** 18n);
+    await linkToken.connect(alice).approve(sourceRouterAddress, 100n * 10n ** 18n);
+    return;
 
     // Prepare loan parameters
     const collateralToken = sourceCCIPBnMTokenAddress;

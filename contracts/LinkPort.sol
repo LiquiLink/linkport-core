@@ -5,6 +5,7 @@ import "./PoolFactory.sol";
 import "./LiquidityPool.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
 import {IAny2EVMMessageReceiver} from "@chainlink/contracts-ccip/contracts/interfaces/IAny2EVMMessageReceiver.sol";
 import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
@@ -12,6 +13,8 @@ import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     PoolFactory public factory;
     IRouterClient public ccipRouter;
+    address public link;
+
 
     // Mapping for Chainlink price feeds
     mapping(address => address) public priceFeeds;
@@ -21,9 +24,10 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     event TokenLoan(address indexed user, address indexed token, uint256 amount);
     event PortSet(uint256 indexed chainId, address indexed port);
 
-    constructor(address _factory, address _ccipRouter) Ownable() {
+    constructor(address _factory, address _ccipRouter, address _link) Ownable() {
         factory = PoolFactory(_factory);
         ccipRouter = IRouterClient(_ccipRouter);
+        link = _link;
     }
 
     function setPriceFeed(address token, address feed) external {
@@ -132,7 +136,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         address port = ports[chainId];
 
         // Build EVM2AnyMessage struct
-        Client.EVM2AnyMessage memory evm2AnyMsg = Client.EVM2AnyMessage({
+        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
             receiver: abi.encode(port), // or remote LinkPort address
             data: payload,
             tokenAmounts: new Client.EVMTokenAmount[](0), // no token transfer
@@ -140,11 +144,15 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
             feeToken: address(0) // pay fee in native token
         });
 
-        // Estimate fee (optional)
-        // (uint256 fee,) = ccipRouter.getFee(targetChainSelector, evm2AnyMsg);
+        uint256 fee = ccipRouter.getFee(
+            chainId,
+            message
+        );
+
+        LinkTokenInterface(link).approve(address(ccipRouter), fee);
 
         // Send the message
-        ccipRouter.ccipSend{value: msg.value}(chainId, evm2AnyMsg);
+        ccipRouter.ccipSend{value: msg.value}(chainId, message);
     }
 
     function ccipReceive(Client.Any2EVMMessage calldata message) external override {

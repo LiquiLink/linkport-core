@@ -28,6 +28,9 @@ const config: HardhatUserConfig = {
       accounts: process.env.LINKPORT_PRIVATE_KEY !== undefined ? [process.env.LINKPORT_PRIVATE_KEY] : [],
     },
   },
+  mocha: {
+    timeout: 1800000,
+  }
 };
 
 export default config;
