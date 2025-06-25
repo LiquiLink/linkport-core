@@ -3,6 +3,12 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
+interface IWETH is IERC20 {
+    function deposit() external payable;
+    function withdraw(uint256) external;
+}
 
 contract LiquidityPool is ERC20 {
     IERC20 public immutable asset;
@@ -64,26 +70,62 @@ contract LiquidityPool is ERC20 {
         emit Locked(user, shares, amount);
     }
 
-
-    function deposit(uint256 amount) external {
+    /// @notice Internal deposit logic for both ERC20 and native token
+    function _deposit(address payer, uint256 amount, bool isNative) internal {
         require(amount > 0, "Amount must be greater than zero");
         accrueInterest();
+
+        if (isNative) {
+            // Wrap native token to WETH/WBNB
+            IWETH(address(asset)).deposit{value: amount}();
+        } else {
+            asset.transferFrom(payer, address(this), amount);
+        }
+
         uint256 poolBalance = asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest;
         uint256 shares = totalSupply() == 0 ? amount : (amount * totalSupply()) / poolBalance;
-        asset.transferFrom(msg.sender, address(this), amount);
-        _mint(msg.sender, shares);
-        emit Deposited(msg.sender, amount, shares);
+        _mint(payer, shares);
+        emit Deposited(payer, amount, shares);
     }
 
-    function withdraw(uint256 shares) external {
+    /// @notice Deposit ERC20 token
+    function deposit(uint256 amount) external {
+        _deposit(msg.sender, amount, false);
+    }
+
+    /// @notice Deposit native token (ETH/BNB), automatically wrap to WETH/WBNB
+    function depositNative() external payable {
+        _deposit(msg.sender, msg.value, true);
+    }
+
+    /// @notice Internal withdraw logic for both ERC20 and native token
+    function _withdraw(address to, uint256 shares, bool isNative) internal {
         require(balanceOf(msg.sender) >= shares, "Not enough shares");
         accrueInterest();
+
         uint256 poolBalance = asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest;
         uint256 amount = (shares * poolBalance) / totalSupply();
         _burn(msg.sender, shares);
         require(asset.balanceOf(address(this)) >= amount, "Insufficient liquidity");
-        asset.transfer(msg.sender, amount);
-        emit Withdrawn(msg.sender, amount, shares);
+
+        if (isNative) {
+            IWETH(address(asset)).withdraw(amount);
+            (bool sent, ) = to.call{value: amount}("");
+            require(sent, "Native transfer failed");
+        } else {
+            asset.transfer(to, amount);
+        }
+        emit Withdrawn(to, amount, shares);
+    }
+
+    /// @notice Withdraw ERC20 token
+    function withdraw(uint256 shares) external {
+        _withdraw(msg.sender, shares, false);
+    }
+
+    /// @notice Withdraw native token (ETH/BNB), automatically unwrap WETH/WBNB
+    function withdrawNative(uint256 shares) external {
+        _withdraw(msg.sender, shares, true);
     }
 
     function setPort(address _port) external /* onlyOwner or other access control */ {
@@ -160,4 +202,7 @@ contract LiquidityPool is ERC20 {
 
         emit Repaid(from, principalPaid, interestPaid);
     }
+
+    /// @notice Allow contract to receive native token
+    receive() external payable {}
 }

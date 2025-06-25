@@ -66,7 +66,8 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         // 3. Ensure LTV ≤ 80%
         require(totalBorrowValue * 100 <= collateralValue * 80, "Exceeds LTV");
 
-        LiquidityPool pool = LiquidityPool(factory.getPool(collateralToken));
+        address payable collateralPool = payable(factory.getPool(collateralToken));
+        LiquidityPool pool = LiquidityPool(collateralPool);
         pool.lock(msg.sender, collateralAmount);
 
         // 6. Send CCIP message to target chain (pseudo-code)
@@ -75,7 +76,8 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
 
     function repay(uint64 chainId, address token, uint256 amount) external {
         // Add access control as needed
-        LiquidityPool pool = LiquidityPool(factory.getPool(token));
+        address payable poolAddress = payable(factory.getPool(token));
+        LiquidityPool pool = LiquidityPool(poolAddress);
         require(address(pool) != address(0), "Pool not found");
         pool.repayFor(chainId, token,  msg.sender, amount);
         address[] memory tokens = new address[](1);
@@ -155,7 +157,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         if (msgType == 1) {
             require(tokens.length == amount.length, "Length mismatch");
             for (uint256 i = 0; i < tokens.length; i++) {
-                LiquidityPool pool = LiquidityPool(factory.getPool(tokens[i]));
+                LiquidityPool pool = LiquidityPool(payable(factory.getPool(tokens[i])));
                 pool.loanTo(chainId, collateralToken, collateralAmount, user, amount[i]);
                 emit TokenLoan(user, tokens[i], amount[i]);
             }
