@@ -9,6 +9,7 @@ import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkT
 import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
 import {IAny2EVMMessageReceiver} from "@chainlink/contracts-ccip/contracts/interfaces/IAny2EVMMessageReceiver.sol";
 import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+import "hardhat/console.sol";
 
 contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     PoolFactory public factory;
@@ -55,7 +56,9 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         uint256[] calldata borrowAmounts
     ) external {
         require(borrowTokens.length == borrowAmounts.length, "Length mismatch");
+        console.log("Loan request from user %s for collateral %s with amount %s", msg.sender, collateralToken, collateralAmount);
 
+        /*
         // 1. Check collateral value
         uint256 collateralPrice = getTokenPrice(collateralToken);
         uint256 collateralValue = collateralAmount * collateralPrice;
@@ -70,9 +73,10 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         // 3. Ensure LTV ≤ 80%
         require(totalBorrowValue * 100 <= collateralValue * 80, "Exceeds LTV");
 
-        address payable collateralPool = payable(factory.getPool(collateralToken));
-        LiquidityPool pool = LiquidityPool(collateralPool);
+        */
+        LiquidityPool pool = LiquidityPool(payable(factory.getPool(collateralToken)));
         pool.lock(msg.sender, collateralAmount);
+        console.log("Locked collateral for user %s: %s %s", msg.sender, collateralAmount, collateralToken);
 
         // 6. Send CCIP message to target chain (pseudo-code)
         sendCCIPLoanMsg(chainId, 1, msg.sender, borrowTokens, borrowAmounts, collateralToken, collateralAmount);
@@ -80,8 +84,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
 
     function repay(uint64 chainId, address token, uint256 amount) external {
         // Add access control as needed
-        address payable poolAddress = payable(factory.getPool(token));
-        LiquidityPool pool = LiquidityPool(poolAddress);
+        LiquidityPool pool = LiquidityPool(payable(factory.getPool(token)));
         require(address(pool) != address(0), "Pool not found");
         pool.repayFor(chainId, token,  msg.sender, amount);
         address[] memory tokens = new address[](1);
@@ -110,7 +113,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
             data: payload,
             tokenAmounts: new Client.EVMTokenAmount[](0), // no token transfer
             extraArgs: "",
-            feeToken: address(0) // pay fee in native token
+            feeToken: link // pay fee in native token
         });
 
         // Estimate fee (optional)
@@ -141,8 +144,11 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
             data: payload,
             tokenAmounts: new Client.EVMTokenAmount[](0), // no token transfer
             extraArgs: "",
-            feeToken: address(0) // pay fee in native token
+            feeToken: link // pay fee in native token
         });
+        
+        console.log("Sending CCIP message to chain %s", chainId, " with type ", msgType);
+        console.log("Message receiver port: %s", port);
 
         uint256 fee = ccipRouter.getFee(
             chainId,
@@ -151,8 +157,12 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
 
         LinkTokenInterface(link).approve(address(ccipRouter), fee);
 
+        // Estimate fee (optional)
+        // (uint256 fee,) = ccipRouter.getFee(targetChainSelector, evm2AnyMsg);
+
+        console.log("CCIP router address: %s", address(ccipRouter));   
         // Send the message
-        ccipRouter.ccipSend{value: msg.value}(chainId, message);
+        ccipRouter.ccipSend(chainId, message);
     }
 
     function ccipReceive(Client.Any2EVMMessage calldata message) external override {

@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "hardhat/console.sol";
 
 interface IWETH is IERC20 {
     function deposit() external payable;
@@ -62,11 +63,12 @@ contract LiquidityPool is ERC20 {
     function lock(address user, uint256 amount) external {
         require(msg.sender == port, "Only port can lock collateral");
         require(amount > 0, "Amount must be greater than zero");
-        require(asset.balanceOf(user) >= amount, "Insufficient balance");
-        locked[user] += amount;
         uint256 poolBalance = asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest;
-        uint256 shares = amount * (poolBalance / totalSupply());
-        transferFrom(user, address(this), shares);
+        uint256 shares = amount * poolBalance / totalSupply();
+        require(shares <= balanceOf(user), "Insufficient shares for locking");
+        console.log("user balance & shares ", user, balanceOf(user), shares);
+        _transfer(user, address(this), shares);
+        locked[user] += amount;
         emit Locked(user, shares, amount);
     }
 
