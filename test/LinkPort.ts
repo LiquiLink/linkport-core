@@ -100,13 +100,107 @@ describe("LinkPort CCIP Loan & Repay", function () {
 
     await destinationLinkPort.setPort(getRouterConfig(source).chainSelector, sourceLinkPort.address);
 
+    // --- Deploy Link liquidity pool on both source and destination chains ---
+    // On source chain
+    await hre.network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: getProviderRpcUrl(source),
+          },
+        },
+      ],
+    });
 
+    const poolFactoryFactory = await hre.ethers.getContractFactory("PoolFactory");
+    const sourcePoolFactory = await poolFactoryFactory.deploy();
+    await sourcePoolFactory.deployed();
+
+    const feeRate = 50; // 0.5%
+    const tx1 = await sourcePoolFactory.createPool(
+      sourceLinkPort.address,
+      sourcelinkTokenAddress,
+      feeRate
+    );
+    await tx1.wait();
+    const tx3 = await sourcePoolFactory.createPool(
+      sourceLinkPort.address,
+      '0x0000000000000000000000000000000000000000', 
+      feeRate
+    );
+    await tx3.wait();
+    const sourceLinkPoolAddress = await sourcePoolFactory.getPoolAddress(sourcelinkTokenAddress);
+    const sourceEthPoolAddress = await sourcePoolFactory.getPoolAddress('0x0000000000000000000000000000000000000000');
+    console.log("Source Link Pool deployed at:", sourceLinkPoolAddress);
+    console.log("Source ETH Pool deployed at:", sourceEthPoolAddress);
+
+    // On destination chain
+    await hre.network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: getProviderRpcUrl(destination),
+          },
+        },
+      ],
+    });
+
+    const destPoolFactoryFactory = await hre.ethers.getContractFactory("PoolFactory");
+    const LiquidityPoolFactory = await hre.ethers.getContractFactory("LiquidityPool");
+    const destPoolFactory = await destPoolFactoryFactory.deploy();
+    await destPoolFactory.deployed();
+
+    const tx2 = await destPoolFactory.createPool(
+      destinationLinkPort.address,
+      destlinkTokenAddress,
+      feeRate
+    );
+    await tx2.wait();
+
+    const tx4 = await destPoolFactory.createPool(
+      destinationLinkPort.address,
+      '0x0000000000000000000000000000000000000000', 
+      feeRate
+    );
+    await tx4.wait();
+    const destLinkPoolAddress = await destPoolFactory.getPoolAddress(destlinkTokenAddress);
+    const destEthPoolAddress = await destPoolFactory.getPoolAddress('0x0000000000000000000000000000000000000000');
+    console.log("Destination Link Pool deployed at:", destLinkPoolAddress);
+    console.log("Destination ETH Pool deployed at:", destEthPoolAddress);
+
+    await hre.network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: getProviderRpcUrl(source),
+          },
+        },
+      ],
+    });
 
     // Prepare LINK for CCIP fee
     const linkTokenFactory = await hre.ethers.getContractFactory("TToken");
     const linkToken = linkTokenFactory.attach(sourcelinkTokenAddress)
     await requestLinkFromTheFaucet(sourcelinkTokenAddress, alice.address, 100n * 10n ** 18n);
-    await linkToken.connect(alice).approve(sourceRouterAddress, 100n * 10n ** 18n);
+    await linkToken.connect(alice).transfer(sourceLinkPort.address, 10n * 10n ** 18n);
+
+    const sourceLinkPool = await LiquidityPoolFactory.attach(sourceLinkPoolAddress);
+    const sourceEthPool = await LiquidityPoolFactory.attach(sourceEthPoolAddress);
+
+    let tx ;
+    tx = await linkToken.connect(alice).approve(sourceLinkPort.address, 100n * 10n ** 18n);
+    await tx.wait();
+    tx = await sourceLinkPool.connect(alice).deposit(100n * 10n ** 18n);
+    console.log("Deposited 100 LINK into source Link Pool");
+    await tx.wait()
+    tx = await sourceEthPool.connect(alice).deposit(100n * 10n ** 18n);
+    console.log("Deposited 100 ETH into source ETH Pool");
+    await tx.wait()
+
+    
     return;
 
     // Prepare loan parameters
@@ -186,5 +280,6 @@ describe("LinkPort CCIP Loan & Repay", function () {
 
     // Check that the repay event was emitted on source
     // (You may want to check balances or emitted events here)
+
   });
-});
+})
