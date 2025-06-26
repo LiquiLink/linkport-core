@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "hardhat/console.sol";
 
 interface IWETH is IERC20 {
     function deposit() external payable;
@@ -72,8 +71,6 @@ contract LiquidityPool is ERC20 {
         uint256 poolBalance = asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest;
         uint256 shares = amount * poolBalance / totalSupply();
         require(shares <= balanceOf(user), "Insufficient shares for locking");
-        console.log("user balance & shares ", user, balanceOf(user), shares);
-        console.log("locked user amount", amount, user);
         _transfer(user, address(this), shares);
         lockedAmount[user] += amount;
         lockedShares[user] += shares;
@@ -83,7 +80,6 @@ contract LiquidityPool is ERC20 {
     function unlock(address user, uint256 amount) external {
         require(msg.sender == port, "Only port can lock collateral");
         require(amount > 0, "Amount must be greater than zero");
-        console.log("unlock user amount", amount, user, lockedAmount[user]);
         require(lockedAmount[user] >= amount, "Insufficient locked amount");
         uint256 shares = amount * lockedShares[user] / lockedAmount[user];
         _transfer(address(this), user, shares);
@@ -157,9 +153,6 @@ contract LiquidityPool is ERC20 {
     function loanTo(uint256 chainId,address token, uint256 tokenAmount, address to, uint256 amount) external {
         require(msg.sender == port, "Only port can call loanTo");
         accrueInterest();
-        console.log("loanTo called with chainId:", chainId);
-        console.log("loanTo called with token:", token);
-        console.log("loanTo called with tokenAmount:", tokenAmount);
         require(asset.balanceOf(address(this)) >= amount, "Insufficient pool");
 
         Loan storage loan = loans[to][chainId][token];
@@ -177,9 +170,6 @@ contract LiquidityPool is ERC20 {
         } else {
             loans[to][chainId][token] = Loan(tokenAmount, amount, 0, block.timestamp);
         }
-        console.log("Loan to", to);
-        console.log("Loan to", chainId);
-        console.log("Loan to", token);
 
         totalLoans += amount;
         asset.transfer(to, amount);
@@ -196,7 +186,6 @@ contract LiquidityPool is ERC20 {
         // Recalculate and accumulate interest before repayment
         if (loan.amount > 0) {
             uint256 elapsed = block.timestamp - loan.startTime;
-            console.log("Elapsed time since last repayment: ", elapsed);
             if (elapsed > 0) {
                 uint256 accrued = (loan.amount * interestRate * elapsed) / (10000 * 86400 * 365);
                 loan.interest += accrued;
@@ -205,15 +194,8 @@ contract LiquidityPool is ERC20 {
         }
 
         uint256 totalOwed = loan.amount + loan.interest;
-        console.log("Repay from", from);
-        console.log("Repay chainId", chainId);
-        console.log("Repay token", token);
-        console.log("Total owed by user", totalOwed);
-        console.log("Total amount", amount);
         require(totalOwed > 0, "No debt to repay");
         require(amount <= totalOwed, "Repay amount exceeds debt");
-        console.log("Repay before amount", loan.amount);
-        console.log("Repay before intrest", loan.interest);
 
         // Repay interest first, then principal
         uint256 interestPaid = amount > loan.interest ? loan.interest : amount;
@@ -226,8 +208,6 @@ contract LiquidityPool is ERC20 {
             totalLoans -= principalPaid;
             loan.tokenAmount -= tokenAmount;
         }
-        console.log("Repay after amount", loan.amount);
-        console.log("Repay after intrest", loan.interest);
 
         /*
         // Fee is only charged on the interest paid
