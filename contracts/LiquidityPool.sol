@@ -30,11 +30,13 @@ contract LiquidityPool is ERC20 {
 
     event Deposited(address indexed user, uint256 amount, uint256 shares);
     event Withdrawn(address indexed user, uint256 amount, uint256 shares);
-    event Loaned(address indexed user, uint256 amount, uint256 interest);
+    event Loaned(address indexed user, uint256 amount);
     event Repaid(address indexed user, uint256 amount, uint256 interest);
     event Locked(address indexed user, uint256 shares, uint256 amount);
+    event Unlock(address indexed user, uint256 shares, uint256 amount);
 
-    mapping(address => uint256) public locked; 
+    mapping(address => uint256) public lockedShares; 
+    mapping(address => uint256) public lockedAmount; 
 
     address public immutable factory;
     address public port;
@@ -48,6 +50,10 @@ contract LiquidityPool is ERC20 {
         port = _port; 
     }
 
+    function getLoanCollateralAmount(address user, uint256 chainId, address token) external view returns (uint256) {
+        return loans[user][chainId][token].tokenAmount;
+    }
+
     // Called before every deposit/withdraw/loan/repay to update pool state
     function accrueInterest() public {
         uint256 elapsed = block.timestamp - lastAccrual;
@@ -55,7 +61,7 @@ contract LiquidityPool is ERC20 {
             return;
         }
         // Linear interest accrual: principal * rate * time / (10000 * 365 days)
-        uint256 interest = (totalLoans * interestRate * elapsed) / (10000 * 365 days);
+        uint256 interest = (totalLoans * interestRate * elapsed) / (10000 * 365 * 86400 );
         totalAccruedInterest += interest;
         lastAccrual = block.timestamp;
     }
@@ -67,9 +73,23 @@ contract LiquidityPool is ERC20 {
         uint256 shares = amount * poolBalance / totalSupply();
         require(shares <= balanceOf(user), "Insufficient shares for locking");
         console.log("user balance & shares ", user, balanceOf(user), shares);
+        console.log("locked user amount", amount, user);
         _transfer(user, address(this), shares);
-        locked[user] += amount;
+        lockedAmount[user] += amount;
+        lockedShares[user] += shares;
         emit Locked(user, shares, amount);
+    }
+
+    function unlock(address user, uint256 amount) external {
+        require(msg.sender == port, "Only port can lock collateral");
+        require(amount > 0, "Amount must be greater than zero");
+        console.log("unlock user amount", amount, user, lockedAmount[user]);
+        require(lockedAmount[user] >= amount, "Insufficient locked amount");
+        uint256 shares = amount * lockedShares[user] / lockedAmount[user];
+        _transfer(address(this), user, shares);
+        lockedAmount[user] -= amount;
+        lockedShares[user] -= shares;
+        emit Unlock(user, shares, amount);
     }
 
     /// @notice Internal deposit logic for both ERC20 and native token
@@ -137,29 +157,33 @@ contract LiquidityPool is ERC20 {
     function loanTo(uint256 chainId,address token, uint256 tokenAmount, address to, uint256 amount) external {
         require(msg.sender == port, "Only port can call loanTo");
         accrueInterest();
+        console.log("loanTo called with chainId:", chainId);
+        console.log("loanTo called with token:", token);
+        console.log("loanTo called with tokenAmount:", tokenAmount);
         require(asset.balanceOf(address(this)) >= amount, "Insufficient pool");
 
         Loan storage loan = loans[to][chainId][token];
-        uint256 interest = (amount * interestRate) / 10000;
 
         // If a loan record exists, calculate and accumulate existing interest, and reset startTime
         if (loan.amount > 0) {
             uint256 elapsed = block.timestamp - loan.startTime;
             if (elapsed > 0) {
-                uint256 accrued = (loan.amount * interestRate * elapsed) / (10000 * 365 days);
+                uint256 accrued = (loan.amount * interestRate * elapsed) / (10000 * 365 * 86400);
                 loan.interest += accrued;
             }
             loan.startTime = block.timestamp;
             loan.tokenAmount += tokenAmount;
             loan.amount += amount;
-            loan.interest += interest;
         } else {
-            loans[to][chainId][token] = Loan(tokenAmount, amount, interest, block.timestamp);
+            loans[to][chainId][token] = Loan(tokenAmount, amount, 0, block.timestamp);
         }
+        console.log("Loan to", to);
+        console.log("Loan to", chainId);
+        console.log("Loan to", token);
 
         totalLoans += amount;
         asset.transfer(to, amount);
-        emit Loaned(to, amount, interest);
+        emit Loaned(to, amount);
     }
 
     function repayFor(uint256 chainId, address token, address from, uint256 amount) external {
@@ -172,15 +196,24 @@ contract LiquidityPool is ERC20 {
         // Recalculate and accumulate interest before repayment
         if (loan.amount > 0) {
             uint256 elapsed = block.timestamp - loan.startTime;
+            console.log("Elapsed time since last repayment: ", elapsed);
             if (elapsed > 0) {
-                uint256 accrued = (loan.amount * interestRate * elapsed) / (10000 * 365 days);
+                uint256 accrued = (loan.amount * interestRate * elapsed) / (10000 * 86400 * 365);
                 loan.interest += accrued;
                 loan.startTime = block.timestamp;
             }
         }
 
         uint256 totalOwed = loan.amount + loan.interest;
+        console.log("Repay from", from);
+        console.log("Repay chainId", chainId);
+        console.log("Repay token", token);
+        console.log("Total owed by user", totalOwed);
+        console.log("Total amount", amount);
+        require(totalOwed > 0, "No debt to repay");
         require(amount <= totalOwed, "Repay amount exceeds debt");
+        console.log("Repay before amount", loan.amount);
+        console.log("Repay before intrest", loan.interest);
 
         // Repay interest first, then principal
         uint256 interestPaid = amount > loan.interest ? loan.interest : amount;
@@ -188,10 +221,15 @@ contract LiquidityPool is ERC20 {
 
         loan.interest -= interestPaid;
         if (principalPaid > 0) {
+            uint256 tokenAmount = loan.tokenAmount * principalPaid / loan.amount; // Adjust token amount proportionally
             loan.amount -= principalPaid;
             totalLoans -= principalPaid;
+            loan.tokenAmount -= tokenAmount;
         }
+        console.log("Repay after amount", loan.amount);
+        console.log("Repay after intrest", loan.interest);
 
+        /*
         // Fee is only charged on the interest paid
         uint256 fee = (interestPaid * feeRate) / 10000;
         if (fee > 0) {
@@ -201,6 +239,7 @@ contract LiquidityPool is ERC20 {
         // The remaining portion goes to the pool
         uint256 poolPortion = amount - fee;
         asset.transferFrom(from, address(this), poolPortion);
+        */
 
         emit Repaid(from, principalPaid, interestPaid);
     }

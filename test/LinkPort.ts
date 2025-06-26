@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import hre from "hardhat";
 // import { ethers } from "hardhat";
-//import { id, AbiCoder } from "ethers";
+// import { id, AbiCoder } from "ethers";
 import {
   getEvm2EvmMessage,
   requestLinkFromTheFaucet,
@@ -19,6 +19,7 @@ import {
   getRouterConfig,
   getFaucetTokensAddresses,
 } from "../helpers/utils";
+import { link } from "fs";
 
 describe("LinkPort CCIP Loan & Repay", function () {
   it("Should perform cross-chain loan and repay via CCIP", async function () {
@@ -104,7 +105,11 @@ describe("LinkPort CCIP Loan & Repay", function () {
     // Register port addresses for cross-chain messaging
     // await sourceLinkPort.setPort(destinationChainSelector, destinationLinkPort.target);
     await sourceLinkPort.setPort(destinationChainSelector, "0x34d9B6eD9E6bcc09742643Ec73126BAEdfff1Cf6");
+    await sourceLinkPort.setPort(sourceChainSelector, "0x34d9B6eD9E6bcc09742643Ec73126BAEdfff1Cf6");
     console.log("Source Link Port set for destination chain:", destinationChainSelector);
+
+    await sourceLinkPort.setTokenPrice(sourceWETH.target, 2400);
+    await sourceLinkPort.setTokenPrice(sourcelinkTokenAddress, 13);
 
     /*
     await hre.network.provider.request({
@@ -138,7 +143,6 @@ describe("LinkPort CCIP Loan & Repay", function () {
     //await sourcePoolFactory.deployed();
 
     const feeRate = 50; // 0.5%
-    /*
     const tx1 = await sourcePoolFactory.createPool(
       sourceLinkPort.target,
       sourcelinkTokenAddress,
@@ -146,8 +150,6 @@ describe("LinkPort CCIP Loan & Repay", function () {
     );
     await tx1.wait();
     console.log("Source Pool Factory created pool for LINK");
-    console.log("Source Link Pool deployed at:", sourceLinkPoolAddress);
-    */
     const tx3 = await sourcePoolFactory.createPool(
       sourceLinkPort.target,
       sourceWETH.target,
@@ -156,7 +158,8 @@ describe("LinkPort CCIP Loan & Repay", function () {
     await tx3.wait();
     console.log("Source Pool Factory created pool for ETH");
 
-    // const sourceLinkPoolAddress = await sourcePoolFactory.getPoolAddress(sourcelinkTokenAddress);
+    const sourceLinkPoolAddress = await sourcePoolFactory.getPoolAddress(sourcelinkTokenAddress);
+    console.log("Source Link Pool deployed at:", sourceLinkPoolAddress);
     const sourceEthPoolAddress = await sourcePoolFactory.getPoolAddress(sourceWETH.target);
     console.log("Source ETH Pool deployed at:", sourceEthPoolAddress);
 
@@ -212,19 +215,28 @@ describe("LinkPort CCIP Loan & Repay", function () {
     console.log("Source LINK balance:", (await sourcelinkToken.balanceOf(alice.address)).toString());
     await sourcelinkToken.connect(alice).transfer(sourceLinkPort.target, 10n * 10n ** 18n);
 
-    //const sourceLinkPool = await LiquidityPoolFactory.attach(sourceLinkPoolAddress);
+    const sourceLinkPool = await LiquidityPoolFactory.attach(sourceLinkPoolAddress);
     const sourceEthPool = await LiquidityPoolFactory.attach(sourceEthPoolAddress);
 
     let tx ;
-    //tx = await sourcelinkToken.connect(alice).transfer(sourceLinkPort.target, 100n * 10n ** 18n);
-    //await tx.wait();
-    //console.log("Transferred 100 LINK to source Link Port");
-    //tx = await sourceLinkPool.connect(alice).deposit(100n * 10n ** 18n);
-    //console.log("Deposited 100 LINK into source Link Pool");
-    //await tx.wait()
-    tx = await sourceEthPool.connect(alice).depositNative({ value: 100n * 10n ** 18n });
-    console.log("Deposited 100 ETH into source ETH Pool");
+    tx = await sourcelinkToken.connect(alice).transfer(sourceLinkPort.target, 100n * 10n ** 18n);
+    await tx.wait();
+    console.log("Transferred 100 LINK to source Link Port");
+
+    tx = await sourcelinkToken.connect(alice).approve(sourceLinkPool.target, 1000n * 10n ** 18n);
+    await tx.wait();
+    tx = await sourceLinkPool.connect(alice).deposit(1000n * 10n ** 18n);
+    console.log("Deposited 1000 LINK into source Link Pool");
     await tx.wait()
+    tx = await sourceEthPool.connect(alice).depositNative({ value: 1000n * 10n ** 18n });
+    console.log("Deposited 1000 ETH into source ETH Pool");
+    await tx.wait()
+
+    const beforeETHBalance = await hre.ethers.provider.getBalance(alice.address);
+    const beforeLinkBalance = await sourcelinkToken.balanceOf(alice.address);
+
+    console.log("Current ETH balance:", beforeETHBalance.toString());
+    console.log("Current LINK balance:", beforeLinkBalance.toString());
 
     /*
     await hre.network.provider.request({
@@ -272,13 +284,70 @@ describe("LinkPort CCIP Loan & Repay", function () {
 
     tx = await sourceLinkPort.loan(destinationChainSelector, sourceWETH.target, 10n * 10n ** 18n, [sourcelinkTokenAddress], [50n * 10n ** 18n]);
 
+
+    const loanReceipt = await tx.wait();
+
+    const loanMsg = getEvm2EvmMessage(loanReceipt);
+    console.log("EVM2EVM message:", loanMsg);
+
+    const message =  {
+        sourceChainSelector: 16015286601757825753n,
+        sender: '0xFC6CaDb571f8F71cF1c6277B0b5fDE90555f2F8f',
+        receiver: '0x34d9B6eD9E6bcc09742643Ec73126BAEdfff1Cf6',
+        sequenceNumber: 6824n,
+        gasLimit: 200000n,
+        strict: false,
+        nonce: 1n,
+        feeToken: '0x779877A7B0D9E8603169DdbD7836e478b4624789',
+        feeTokenAmount: 48366694124408740n,
+        data: '0x0000000000000000000000000000000000000000000000000000000000007a690000000000000000000000000000000000000000000000000000000000000001000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000120000000000000000000000000d20b4c69c173d83567de947e9c0dfeedc95fe06d00000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000779877a7b0d9e8603169ddbd7836e478b46247890000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000002b5e3af16b188000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e80000',
+        tokenAmounts: [],
+        destTokenAmounts: [],
+        sourceTokenData: [],
+        messageId: '0x9ac3d58f4192d9a48b726978b9a306554065d38d7f81485251a85947e46d261a'
+    }
+
+    await sourceLinkPort.ccipReceive1(message)
+
+    const afterETHBalance = await hre.ethers.provider.getBalance(alice.address);
+    const afterLinkBalance = await sourcelinkToken.balanceOf(alice.address);
+
+    console.log("After ETH balance:", afterETHBalance.toString());
+    console.log("After LINK balance:", afterLinkBalance.toString());
+
+    tx = await sourcelinkToken.connect(alice).approve(sourceLinkPool.target, 10n * 10n ** 18n);
+    await tx.wait();
+    console.log("Approved 10 LINK for repayment");
+
+    tx = await sourceLinkPort.repay(destinationChainSelector, sourceWETH.target, [sourcelinkTokenAddress], [10n * 10n ** 18n]);
     const receipt = await tx.wait();
-    console.log("loan receipt", receipt)
+    const repayMsg1 = getEvm2EvmMessage(receipt);
+    console.log("EVM2EVM message:", repayMsg1);
 
-    const evm2EvmMessage = getEvm2EvmMessage(receipt);
-    console.log("EVM2EVM message:", evm2EvmMessage);
+    const repayMsg =  {
+        sourceChainSelector: 16015286601757825753n,
+        sender: '0xFC6CaDb571f8F71cF1c6277B0b5fDE90555f2F8f',
+        receiver: '0x34d9B6eD9E6bcc09742643Ec73126BAEdfff1Cf6',
+        sequenceNumber: 6825n,
+        gasLimit: 200000n,
+        strict: false,
+        nonce: 1n,
+        feeToken: '0x779877A7B0D9E8603169DdbD7836e478b4624789',
+        feeTokenAmount: 49472273547665396n,
+        data: '0x0000000000000000000000000000000000000000000000000000000000007a690000000000000000000000000000000000000000000000000000000000000002000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000120000000000000000000000000d20b4c69c173d83567de947e9c0dfeedc95fe06d00000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000779877a7b0d9e8603169ddbd7836e478b462478900000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000001bc16cf12df79103',
+        tokenAmounts: [],
+        destTokenAmounts: [],
+        sourceTokenData: [],
+        messageId: '0xd5a81ba3ad56edbd3b05d34d79f85ce5bfa7661a1c3790878755049d5dcd02eb'
+    }
+
+    await sourceLinkPort.ccipReceive1(repayMsg);
+
+    //await routeMessage(sourceRouterAddress, evm2EvmMessage);
 
 
+
+    /*
     await hre.network.provider.request({
       method: "hardhat_reset",
       params: [
