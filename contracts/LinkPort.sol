@@ -42,6 +42,16 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
 
     address public uniswapV2Router; // Set this in constructor or via setter
 
+    constructor(
+        address _factory,
+        address _ccipRouter,
+        address _link
+    ) {
+        factory = PoolFactory(_factory);
+        ccipRouter = IRouterClient(_ccipRouter);
+        link = _link;
+    }   
+
     function setPriceFeed(address token, address feed) external {
         // Only owner, add modifier as needed
         priceFeeds[token] = feed;
@@ -50,6 +60,12 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
     function setPort(uint256 chainId, address port) external onlyOwner {
         ports[chainId] = port;
     }
+
+    function setToken(address token, uint256 chainId, address _token) external onlyOwner {
+        // Only owner, add modifier as needed
+        tokenList[token][chainId] = _token;
+    }
+
 
     function setTokenPrice(address token, uint256 price) external onlyOwner {
         // Only owner, add modifier as needed

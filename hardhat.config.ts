@@ -22,7 +22,7 @@ const config: HardhatUserConfig = {
       url: process.env.ARBITRUM_SEPOLIA_RPC_URL|| "",
       accounts: process.env.LINKPORT_PRIVATE_KEY !== undefined ? [process.env.LINKPORT_PRIVATE_KEY] : [],
     },
-    bnbtestnet: {
+    bnbChainTestnet: {
       url: process.env.LINKPORT_BNBTESTNET_URL || "",
       accounts: process.env.LINKPORT_PRIVATE_KEY !== undefined ? [process.env.LINKPORT_PRIVATE_KEY] : [],
     },
