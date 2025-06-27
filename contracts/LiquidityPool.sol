@@ -16,6 +16,7 @@ contract LiquidityPool is ERC20 {
     uint256 public totalLoans;
     uint256 public interestRate; // e.g. 2000 = 20%
     uint256 public lastAccrual;
+    uint256 public portLoan = 0;
     uint256 public totalAccruedInterest; // total accrued interest for all outstanding loans
 
     struct Loan {
@@ -65,10 +66,14 @@ contract LiquidityPool is ERC20 {
         lastAccrual = block.timestamp;
     }
 
+    function getPoolBalance() public view returns (uint256) {
+        return asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest + portLoan;
+    }
+
     function lock(address user, uint256 amount) external {
         require(msg.sender == port, "Only port can lock collateral");
         require(amount > 0, "Amount must be greater than zero");
-        uint256 poolBalance = asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest;
+        uint256 poolBalance = getPoolBalance();
         uint256 shares = amount * poolBalance / totalSupply();
         require(shares <= balanceOf(user), "Insufficient shares for locking");
         _transfer(user, address(this), shares);
@@ -100,7 +105,7 @@ contract LiquidityPool is ERC20 {
             asset.transferFrom(payer, address(this), amount);
         }
 
-        uint256 poolBalance = asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest;
+        uint256 poolBalance = getPoolBalance();
         uint256 shares = totalSupply() == 0 ? amount : (amount * totalSupply()) / poolBalance;
         _mint(payer, shares);
         emit Deposited(payer, amount, shares);
@@ -121,7 +126,7 @@ contract LiquidityPool is ERC20 {
         require(balanceOf(msg.sender) >= shares, "Not enough shares");
         accrueInterest();
 
-        uint256 poolBalance = asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest;
+        uint256 poolBalance = getPoolBalance();
         uint256 amount = (shares * poolBalance) / totalSupply();
         _burn(msg.sender, shares);
         require(asset.balanceOf(address(this)) >= amount, "Insufficient liquidity");
@@ -222,6 +227,22 @@ contract LiquidityPool is ERC20 {
         */
 
         emit Repaid(from, principalPaid, interestPaid);
+    }
+
+    function portWithdraw(address to, uint256 amount) external {
+        require(msg.sender == port, "Only port can withdraw");
+        require(amount > 0, "Amount must be greater than zero");
+        require(asset.balanceOf(address(this)) >= amount, "Insufficient pool balance");
+
+        portLoan += amount;
+        asset.transfer(to, amount);
+    }
+
+    function portDeposit(address from, uint256 amount) external {
+        require(amount > 0, "Amount must be greater than zero");
+
+        asset.transferFrom(from, address(this), amount);
+        portLoan -= amount;
     }
 
     /// @notice Allow contract to receive native token
