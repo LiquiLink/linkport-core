@@ -7,15 +7,16 @@ import {
 
 async function main() {
   const ethNativeTokenAddress = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14";
-  const ethLinkTokenAddress = "0x779877A7B0D9E8603169DdbD7836e478b4624789"; // Sepolia LINK address
+  const ethLinkTokenAddress = "0x391e62e754caa820b606703d1920c34a35792dd6"; // Sepolia LINK address
   const ethUsdtTokenAddress = "0xa28C606a33AF8175F3bBf71d74796aDa360f4C49"; // Sepolia USDT address
   const ethLinkPortAddress = "0x110B273c4DB995188602492599a583B9eAfD74d0"; // Sepolia LinkPort address
+  const ethbnbTokenAddress = "0xDC64753A100619a00aC950dA011c9eAB9B5aC870"
   const ethNativePoolAddress = "0x3812A2D9925bA5FD8915d8B0b8cc6A00fe0ed808"
   const ethLinkPoolAddress = "0xAc285c231b766BbE0b7964125fb01f808775CB0a"
   const ethUsdtPoolAddress = "0x33e0Eee584352f61490F91951B162E38d0a6EeD7"; // Sepolia USDT Pool address
     // BSC Testnet WBNB address
   const bscNativeTokenAddress = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd";
-  const bscLinkTokenAddress = "0x84b9B910527Ad5C03A9Ca831909E21e236EA7b06"; // BSC Testnet LINK address
+  const bscLinkTokenAddress = "0xf11935eb67fe7c505e93ed7751f8c59fc3199121"; // BSC Testnet LINK address
   const bscUsdtTokenAddress = "0x5016F623414b344a5C26ffDa4e61956c9a41Ca1e"; // BSC Testnet USDT address
   const bscLinkPortAddress = "0x24F81DA0aBBD2a88605E4B140880647F26178744"; // BSC Testnet LinkPort address
   const bscNativePoolAddress = "0x6a2C375d743382eB7ee79A8cEBA8aB8dA3e9d99a"
@@ -84,14 +85,21 @@ async function main() {
 
   const sourceLinkPort = await LinkPortFactory.attach(sourceLinkPortAddress);
 
+  /*
   await sourceLinkPort.setPort(destCCIP.chainSelector, destLinkPortAddress)
   console.log(`Set destination port for ${sourceNetwork} to ${destNetwork} at ${destLinkPortAddress}`);
-  await sourceLinkPort.setToken(sourceNativeTokenAddress, destCCIP.chainSelector, destNativeTokenAddress);
+  await sourceLinkPort.setToken(ethbnbPoolAddress, destCCIP.chainSelector, destNativePoolAddress);
   console.log("Set native token for source network:", sourceNetwork, "to destination network:", destNetwork, "at", destNativeTokenAddress);
   await sourceLinkPort.setToken(sourceLinkTokenAddress, destCCIP.chainSelector, destLinkTokenAddress);
   console.log("Set LINK token for source network:", sourceNetwork, "to destination network:", destNetwork, "at", destLinkTokenAddress);
   await sourceLinkPort.setToken(sourceUsdtTokenAddress, destCCIP.chainSelector, destUsdtTokenAddress);
   console.log("Set USDT token for source network:", sourceNetwork, "to destination network:", destNetwork, "at", destUsdtTokenAddress);
+  */
+
+  //await sourceLinkPort.setToken(ethbnbPoolAddress, destCCIP.chainSelector, destNativeTokenAddress);
+  await sourceLinkPort.setToken(bscNativeTokenAddress, destCCIP.chainSelector, ethbnbTokenAddress);
+  await sourceLinkPort.setToken(bscLinkPoolAddress, destCCIP.chainSelector, ethLinkTokenAddress);
+  await sourceLinkPort.setToken(bscUsdtTokenAddress, destCCIP.chainSelector, ethUsdtTokenAddress);
 
 }
 

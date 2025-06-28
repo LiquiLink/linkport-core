@@ -1,14 +1,10 @@
 import { ethers } from "hardhat";
 
 async function main() {
-    const MarFinToken = await ethers.getContractFactory("MarFinToken");
-    const mft = await MarFinToken.deploy("MarFin Token", "MFT");
-    await mft.deployed();
-    console.log("MarFinToken deployed to:", mft.address);
+    const TToken = await ethers.getContractFactory("TToken");
+    const token = await TToken.deploy("BNB", "BNB");
+    console.log("BNB deployed to:", token.address, token.target);
 
-    const usdt = await MarFinToken.deploy("Tether USD", "USDT");
-    await usdt.deployed();
-    console.log("Tether USD deployed to:", usdt.address);
 }
 
 main()

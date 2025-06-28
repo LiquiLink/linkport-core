@@ -6,8 +6,8 @@ settings:
 
 dependencies:
   '@chainlink/contracts':
-    specifier: 0.3.1
-    version: 0.3.1
+    specifier: 1.4.0
+    version: 1.4.0(ethers@6.14.4)
   '@chainlink/contracts-ccip':
     specifier: 1.6.0
     version: 1.6.0(ethers@6.14.4)
@@ -81,10 +81,6 @@ packages:
       - utf-8-validate
     dev: false
 
-  /@chainlink/contracts@0.3.1:
-    resolution: {integrity: sha512-A8DRvmfNCwLS1iduPPj7wNAZJMe9/ZimMhoHhbbBiq+7Vq/HFjiNcdoQ5NinFdXD5aTsoNUGG5pAYKj7YMpm9A==}
-    dev: false
-
   /@chainlink/contracts@1.4.0(ethers@6.14.4):
     resolution: {integrity: sha512-SpNCJ0TPOI6pa2l702Wk4WIP8ccw5ARcRP1E/ZTqaFffXNoZeF03WhsVL8f3l3OTRFA9Z40O5KcZzmJmZQkoFA==}
     engines: {node: '>=18', pnpm: '>=10'}
@@ -96,7 +92,7 @@ packages:
       '@openzeppelin/contracts': 4.9.6
       '@openzeppelin/contracts-upgradeable': 4.9.6
       '@scroll-tech/contracts': 0.1.0
-      '@zksync/contracts': git@github.com+matter-labs/era-contracts/446d391d34bdb48255d5f8fef8a8248925fc98b9
+      '@zksync/contracts': github.com/matter-labs/era-contracts/446d391d34bdb48255d5f8fef8a8248925fc98b9
       semver: 7.7.2
     transitivePeerDependencies:
       - bufferutil
@@ -342,7 +338,7 @@ packages:
   /@eth-optimism/contracts@0.6.0(ethers@6.14.4):
     resolution: {integrity: sha512-vQ04wfG9kMf1Fwy3FEMqH2QZbgS0gldKhcBeBUPfO8zu68L61VI97UDXmsMQXzTsEAxK8HnokW3/gosl4/NW3w==}
     peerDependencies:
-      ethers: ^5
+      ethers: ^5.7.2
     dependencies:
       '@eth-optimism/core-utils': 0.12.0
       '@ethersproject/abstract-provider': 5.8.0
@@ -4708,8 +4704,8 @@ packages:
     engines: {node: '>=10'}
     dev: false
 
-  git@github.com+matter-labs/era-contracts/446d391d34bdb48255d5f8fef8a8248925fc98b9:
-    resolution: {commit: 446d391d34bdb48255d5f8fef8a8248925fc98b9, repo: git@github.com:matter-labs/era-contracts.git, type: git}
+  github.com/matter-labs/era-contracts/446d391d34bdb48255d5f8fef8a8248925fc98b9:
+    resolution: {tarball: https://codeload.github.com/matter-labs/era-contracts/tar.gz/446d391d34bdb48255d5f8fef8a8248925fc98b9}
     name: era-contracts
     version: 0.1.0
     dev: false

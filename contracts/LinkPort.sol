@@ -104,6 +104,8 @@ contract LinkPort is CCIPReceiver , Ownable{
         }
         require(totalShares > 0, "Total shares must be positive");
 
+        IERC20(collateralToken).transferFrom(msg.sender, address(this), collateralAmount);
+
         // Approve Uniswap router to spend collateralToken
         IERC20(collateralToken).approve(uniswapV2Router, collateralAmount);
 
