@@ -4,10 +4,10 @@ pragma solidity ^0.8.0;
 import "./PoolFactory.sol";
 import "./LiquidityPool.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/contracts/interfaces/IRouterClient.sol";
-import {IAny2EVMMessageReceiver} from "@chainlink/contracts-ccip/contracts/interfaces/IAny2EVMMessageReceiver.sol";
+import { CCIPReceiver } from "@chainlink/contracts-ccip/contracts/applications/CCIPReceiver.sol";
 import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 
 // UniswapV2 Router interface
@@ -21,7 +21,7 @@ interface IUniswapV2Router {
     ) external returns (uint[] memory amounts);
 }
 
-contract LinkPort is IAny2EVMMessageReceiver, Ownable{
+contract LinkPort is CCIPReceiver , Ownable{
     PoolFactory public factory;
     IRouterClient public ccipRouter;
     address public link;
@@ -46,7 +46,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         address _factory,
         address _ccipRouter,
         address _link
-    ) {
+    ) Ownable() CCIPReceiver(_ccipRouter) {
         factory = PoolFactory(_factory);
         ccipRouter = IRouterClient(_ccipRouter);
         link = _link;
@@ -244,9 +244,7 @@ contract LinkPort is IAny2EVMMessageReceiver, Ownable{
         ccipRouter.ccipSend(chainId, message);
     }
 
-    function ccipReceive(Client.Any2EVMMessage calldata message) external {
-        // Only allow calls from the CCIP router
-        require(msg.sender == address(ccipRouter), "Not from router");
+    function _ccipReceive(Client.Any2EVMMessage memory message) internal override {
         // Decode the payload
         (uint256 msgType, address user, address[] memory tokens, uint256[] memory amount, address collateralToken, uint256[] memory tokenCollateralAmount) = abi.decode(message.data, (uint256, address, address[], uint256[], address, uint256[]));
 

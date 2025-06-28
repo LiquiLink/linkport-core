@@ -9,9 +9,9 @@ import {
 async function main() {
   let poolFactoryAddress: string
   if (hre.network.name === "ethereumSepolia") {
-    poolFactoryAddress = "0x22617E1566c4424534e7aDD6d4f45884Fbf8CE2C"
+    poolFactoryAddress = "0x612A3765056Bf76Dfa813373d931C2A477992639"
   } else if (hre.network.name === "bnbChainTestnet") {
-    poolFactoryAddress = "0x5AACDa3725D0efCd129561A7e9181eA6Ad7aEb05"
+    poolFactoryAddress = "0x468995887a7FeE344c38B496bA6b8E439091cB5b"
   } else {
     throw new Error(`Unsupported network: ${hre.network.name}`);
   }

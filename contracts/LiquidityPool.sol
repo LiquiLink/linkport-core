@@ -41,7 +41,7 @@ contract LiquidityPool is ERC20 {
     address public immutable factory;
     address public port;
 
-    constructor(address _port, address _asset, uint256 _feeRate) ERC20("PoolToken", "PTK") {
+    constructor(address _port, address _asset, uint256 _feeRate) ERC20("LiquidityPool Token", "LPT") {
         asset = IERC20(_asset);
         feeRate = _feeRate;
         interestRate = 2000; // 20%
