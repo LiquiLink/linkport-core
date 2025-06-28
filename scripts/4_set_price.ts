@@ -10,12 +10,12 @@ async function main() {
   const ethLinkTokenAddress = "0x391e62e754caa820b606703d1920c34a35792dd6"; // Sepolia LINK address
   const ethUsdtTokenAddress = "0xa28C606a33AF8175F3bBf71d74796aDa360f4C49"; // Sepolia USDT address
   const ethbnbTokenAddress = "0xDC64753A100619a00aC950dA011c9eAB9B5aC870"; // Sepolia WBNB address
-  const ethLinkPortAddress = "0x110B273c4DB995188602492599a583B9eAfD74d0"; // Sepolia LinkPort address
+  const ethLinkPortAddress = "0xD03BAe9d0367ad9241243408D1137AfC92F2efe6"; // Sepolia LinkPort address
     // BSC Testnet WBNB address
   const bscNativeTokenAddress = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd";
   const bscLinkTokenAddress = "0xf11935eb67fe7c505e93ed7751f8c59fc3199121"; // BSC Testnet LINK address
   const bscUsdtTokenAddress = "0x5016F623414b344a5C26ffDa4e61956c9a41Ca1e"; // BSC Testnet USDT address
-  const bscLinkPortAddress = "0x24F81DA0aBBD2a88605E4B140880647F26178744"; // BSC Testnet LinkPort address
+  const bscLinkPortAddress = "0xDC64753A100619a00aC950dA011c9eAB9B5aC870"; // BSC Testnet LinkPort address
 
 
   let sourceLinkPortAddress : string

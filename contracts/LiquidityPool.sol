@@ -34,6 +34,7 @@ contract LiquidityPool is ERC20 {
     event Repaid(address indexed user, uint256 amount, uint256 interest);
     event Locked(address indexed user, uint256 shares, uint256 amount);
     event Unlock(address indexed user, uint256 shares, uint256 amount);
+    event InterestRateChanged(address indexed pool, uint256 newRate);
 
     mapping(address => uint256) public lockedShares; 
     mapping(address => uint256) public lockedAmount; 
@@ -48,6 +49,14 @@ contract LiquidityPool is ERC20 {
         lastAccrual = block.timestamp;
         factory = msg.sender;
         port = _port; 
+    }
+
+    function setInterestRate(uint256 newRate) external /* onlyOwner or other access control */ {
+        require(newRate > 0, "Interest rate must be greater than zero");
+        require(msg.sender == port, "Only port can set interest rate");
+        accrueInterest();
+        interestRate = newRate;
+        emit InterestRateChanged(address(this), newRate);
     }
 
     function getLoanCollateralAmount(address user, uint256 chainId, address token) external view returns (uint256) {
@@ -68,6 +77,12 @@ contract LiquidityPool is ERC20 {
 
     function getPoolBalance() public view returns (uint256) {
         return asset.balanceOf(address(this)) + totalLoans + totalAccruedInterest + portLoan;
+    }
+
+    function getUserPosition(address user) external view returns (uint256 amount) {
+        uint256 shares = balanceOf(user);
+        uint256 poolBalance = getPoolBalance();
+        amount = (shares * poolBalance) / totalSupply();
     }
 
     function lock(address user, uint256 amount) external {
@@ -179,6 +194,16 @@ contract LiquidityPool is ERC20 {
         totalLoans += amount;
         asset.transfer(to, amount);
         emit Loaned(to, amount);
+    }
+
+    function getUserInterest(address user, uint256 chainId, address token) external view returns (uint256) {
+        Loan storage loan = loans[user][chainId][token];
+        if (loan.amount == 0) {
+            return 0;
+        }
+        uint256 elapsed = block.timestamp - loan.startTime;
+        uint256 accrued = (loan.amount * interestRate * elapsed) / (10000 * 365 * 86400);
+        return loan.interest + accrued;
     }
 
     function repayFor(uint256 chainId, address token, address from, uint256 amount) external {

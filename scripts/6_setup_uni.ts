@@ -9,7 +9,7 @@ async function main() {
   const ethNativeTokenAddress = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14";
   const ethLinkTokenAddress = "0x779877A7B0D9E8603169DdbD7836e478b4624789"; // Sepolia LINK address
   const ethUsdtTokenAddress = "0xa28C606a33AF8175F3bBf71d74796aDa360f4C49"; // Sepolia USDT address
-  const ethLinkPortAddress = "0x110B273c4DB995188602492599a583B9eAfD74d0"; // Sepolia LinkPort address
+  const ethLinkPortAddress = "0xD03BAe9d0367ad9241243408D1137AfC92F2efe6"; // Sepolia LinkPort address
   const ethUniswapRouterAddress = "0x1675325a59017823c9417DE46EF55Bbe4ca3136c"; // Uniswap V2 Router address
     // BSC Testnet WBNB address
   const bscNativeTokenAddress = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd";

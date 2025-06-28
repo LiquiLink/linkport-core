@@ -71,6 +71,22 @@ export const LINK_ADDRESSES: AddressMap = {
     [`inkSepolia`]: `0x3423C922911956b1Ccbc2b5d4f38216a6f4299b4`,
 };
 
+export const PRICE_FEED_ADDRESSES = {
+    [`ethereumSepolia`]: {
+        "LINK": "0xc59E3633BAAC79493d908e63626716e204A45EdF",
+        "SNX": "0xc0F82A46033b8BdBA4Bb0B0e28Bc2006F64355bC",
+        "ETH": "0x694AA1769357215DE4FAC081bf1f309aDC325306",
+        "FORTH": "0x070bF128E88A4520b3EfA65AB1e4Eb6F0F9E6632",
+    },
+    [`bnbChainTestnet`]: {
+        "ETH": "0x143db3CEEfbdfe5631aDD3E50f7614B6ba708BA7",
+        "BNB": "0xd21182535598E18D530E88C08c3fFB630B88f84a",
+        "BTC": "0x5741306c21795fdcbb9b265ea0255f499dfe515c",
+        "SXP": "0x678ac35acbce272651874e782db5343f9b8a7d66",
+        "LINK": "0x70889cb5e33fec80f5257a09c76c9afcdf12945e"
+    }
+}
+
 export const CCIP_BnM_ADDRESSES: AddressMap = {
     [`ethereumSepolia`]: `0xFd57b4ddBf88a4e07fF4e34C487b99af2Fe82a05`,
     [`polygonAmoy`]: `0xcab0EF91Bee323d1A617c0a027eE753aFd6997E4`,
