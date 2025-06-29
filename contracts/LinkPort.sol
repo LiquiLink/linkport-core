@@ -195,6 +195,7 @@ contract LinkPort is CCIPReceiver , Ownable{
 
         uint256 userPosition = pool.getUserPosition(msg.sender);
 
+
         if (userPosition < totalAmount) {
             IERC20(collateralToken).transferFrom(msg.sender, address(this), totalAmount - userPosition);
         }
@@ -244,6 +245,7 @@ contract LinkPort is CCIPReceiver , Ownable{
         uint256[] memory collateralAmount,
         uint256 collateralValue
     ) internal {
+
 
         // Encode your payload
         bytes memory payload = abi.encode(msgType, user, user, tokens, amounts, collateralToken, collateralAmount, collateralValue);
@@ -397,7 +399,7 @@ contract LinkPort is CCIPReceiver , Ownable{
                - If your repay before the liquidation request, your position will not be liquidated.
 
             */
-
+            require(from != user, "Liquidator cannot be the user");
 
         } else {
             revert("Unknown message type");

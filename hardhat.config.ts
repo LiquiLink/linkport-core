@@ -23,7 +23,7 @@ const config: HardhatUserConfig = {
       accounts: process.env.LINKPORT_PRIVATE_KEY !== undefined ? [process.env.LINKPORT_PRIVATE_KEY] : [],
     },
     bnbChainTestnet: {
-      url: process.env.LINKPORT_BNBTESTNET_URL || "",
+      url: process.env.BNB_CHAIN_TESTNET_RPC_URL || "",
       accounts: process.env.LINKPORT_PRIVATE_KEY !== undefined ? [process.env.LINKPORT_PRIVATE_KEY] : [],
     },
   },
