@@ -43,6 +43,8 @@ describe("LinkPort CCIP Loan & Repay", function () {
   let tx;
   let blocknumber;
   let loanMsg: any;
+  let repayMsg: any;
+  let bridgeMsg:  any;
 
   const sourcelinkTokenAddress = getLINKTokenAddress(source);
   const destlinkTokenAddress = getLINKTokenAddress(destination);
@@ -119,18 +121,27 @@ describe("LinkPort CCIP Loan & Repay", function () {
     sourceSNXPool = await LiquidityPoolFactory.attach(sourceSNXPoolAddress);
     sourceUSDTPool = await LiquidityPoolFactory.attach(sourceUSDTPoolAddress);
 
+    /*
     await sourceUSDT.connect(alice).approve(sourceUSDTPool.target, 1000n * 10n ** 18n);
     await sourceUSDTPool.connect(alice).deposit(1000n * 10n ** 18n);
     console.log("Alice deposited 1000 USDT into source USDT Pool");
     await sourceSNX.connect(alice).approve(sourceSNXPool.target, 1000n * 10n ** 18n);
     await sourceSNXPool.connect(alice).deposit(1000n * 10n ** 18n);
     console.log("Alice deposited 1000 SNX into source SNX Pool");
+    */
     await sourceWETHPool.connect(bob).depositNative({ value: ethAmount });
     console.log("Bob deposited 1000 WETH into source WETH Pool");
-    tx = await sourceWETHPool.connect(alice).depositNative({ value: ethAmount });
-    await tx.wait();
+    /*
+    await sourceWETHPool.connect(alice).depositNative({ value: ethAmount });
+    */
     console.log("Deposited 1000 WETH into source WETH Pool");
-    blocknumber = await hre.network.provider.send("eth_blockNumber");
+
+    linkTokenFactory = await hre.ethers.getContractFactory("TToken");
+    sourcelinkToken = linkTokenFactory.attach(sourcelinkTokenAddress)
+    await requestLinkFromTheFaucet(sourcelinkTokenAddress, alice.address, 100n * 10n ** 18n);
+    console.log("Source LINK balance:", (await sourcelinkToken.balanceOf(alice.address)).toString());
+    tx = await sourcelinkToken.connect(alice).transfer(sourceLinkPort.target, 10n * 10n ** 18n);
+    await tx.wait();
   }
 
   const deployDestination = async() => {
@@ -171,12 +182,14 @@ describe("LinkPort CCIP Loan & Repay", function () {
 
     await destinationLinkPort.setPort(sourceChainSelector, sourceLinkPort.target);
     console.log("Destination Link Port set for source chain:", sourceChainSelector);
+    /*
     await destinationLinkPort.setToken(sourceUSDT.target, sourceChainSelector, destUSDT.target);
     await destinationLinkPort.setToken(sourceSNX.target, sourceChainSelector, destSNX.target);
     await destinationLinkPort.setToken(sourceWETH.target, sourceChainSelector, destWETH.target);
     await destinationLinkPort.setToken(destUSDT.target, sourceChainSelector, sourceUSDT.target);
     await destinationLinkPort.setToken(destSNX.target, sourceChainSelector, sourceSNX.target);
     await destinationLinkPort.setToken(destWETH.target, sourceChainSelector, sourceWETH.target);
+    */
 
     await destinationLinkPort.setTokenPrice(destWETH.target, 2400 * 10 ** 8); // Set WETH price to $2400
     await destinationLinkPort.setTokenPrice(destSNX.target, 0.6 * 10 ** 8);
@@ -211,8 +224,8 @@ describe("LinkPort CCIP Loan & Repay", function () {
     destSNXPool = await LiquidityPoolFactory.attach(destSNXPoolAddress);
     destUSDTPool = await LiquidityPoolFactory.attach(destUSDTPoolAddress);
 
-    await destUSDT.connect(alice).approve(destUSDTPool.target, 1000n * 10n ** 18n);
-    await destUSDTPool.connect(alice).deposit(1000n * 10n ** 18n);
+    await destUSDT.connect(alice).approve(destUSDTPool.target, 10000n * 10n ** 18n);
+    await destUSDTPool.connect(alice).deposit(10000n * 10n ** 18n);
     console.log("Alice deposited 1000 USDT into destination USDT Pool");
     await destSNX.connect(alice).approve(destSNXPool.target, 1000n * 10n ** 18n);
     await destSNXPool.connect(alice).deposit(1000n * 10n ** 18n);
@@ -220,6 +233,12 @@ describe("LinkPort CCIP Loan & Repay", function () {
     tx = await destWETHPool.connect(alice).depositNative({ value: ethAmount });
     await tx.wait();
     console.log("Alice Deposited 1000 WETH into destination WETH Pool");
+
+    let linkToken = linkTokenFactory.attach(destlinkTokenAddress)
+    await requestLinkFromTheFaucet(destlinkTokenAddress, alice.address, 100n * 10n ** 18n);
+    console.log("Destination LINK balance:", (await linkToken.balanceOf(alice.address)).toString());
+    tx = await linkToken.connect(alice).transfer(destinationLinkPort.target, 10n * 10n ** 18n);
+    await tx.wait();
   }
 
   before(async () => {
@@ -234,76 +253,34 @@ describe("LinkPort CCIP Loan & Repay", function () {
     await deployDestination();
   })
 
-  it("Should send loan via CCIP on source chain", async function () {
+  it("Should send loan & bridge ia CCIP on source chain", async function () {
 
     await deploySource();
-
     // Register port addresses for cross-chain messaging
     await sourceLinkPort.setPort(destinationChainSelector, destinationLinkPort.target);
-    console.log("Source Link Port set for destination chain:", destinationChainSelector);
+
     await sourceLinkPort.setToken(sourceUSDT.target, destinationChainSelector, destUSDT.target);
-    await sourceLinkPort.setToken(sourceSNX.target, destinationChainSelector, destSNX.target);
-    await sourceLinkPort.setToken(sourceWETH.target, destinationChainSelector, destWETH.target);
     await sourceLinkPort.setToken(destUSDT.target, destinationChainSelector, sourceUSDT.target);
-    await sourceLinkPort.setToken(destSNX.target, destinationChainSelector, sourceSNX.target);
-    await sourceLinkPort.setToken(destWETH.target, destinationChainSelector, sourceWETH.target)
-    console.log("source chain set token prices");
-
-    // Prepare LINK for CCIP fee
-    linkTokenFactory = await hre.ethers.getContractFactory("TToken");
-    sourcelinkToken = linkTokenFactory.attach(sourcelinkTokenAddress)
-    await requestLinkFromTheFaucet(sourcelinkTokenAddress, alice.address, 100n * 10n ** 18n);
-    console.log("Source LINK balance:", (await sourcelinkToken.balanceOf(alice.address)).toString());
-    tx = await sourcelinkToken.connect(alice).transfer(sourceLinkPort.target, 10n * 10n ** 18n);
-    await tx.wait();
-
-    const beforeETHBalance = await hre.ethers.provider.getBalance(alice.address);
-    const beforeLinkBalance = await sourcelinkToken.balanceOf(alice.address);
-
-    console.log("Current ETH balance:", beforeETHBalance.toString());
-    console.log("Current LINK balance:", beforeLinkBalance.toString());
-
-
-    console.log("loan to ", destinationChainSelector);
+    await sourceLinkPort.setUniswapV2Router("0x1675325a59017823c9417DE46EF55Bbe4ca3136c")
 
     tx = await sourceLinkPort.connect(bob).loan(destinationChainSelector, sourceWETH.target, [destUSDT.target], [50n * 10n ** 18n], [10n * 10n ** 18n]);
-
     const loanReceipt = await tx.wait();
-
     loanMsg = getEvm2EvmMessage(loanReceipt);
-
     console.log("Loan message:", loanMsg);
 
-    /*
-    sourceSnapshotId = await hre.network.provider.send("evm_snapshot");
-    await hre.network.provider.send("evm_revert", [destSnapshotId]);
+    await sourceUSDT.connect(alice).transfer(bob.address, ethAmount);
 
-    const beforebobLinkBalance = await destUSDT.balanceOf(bob.address);
-    console.log("Bob's USDT balance before loan:", beforebobLinkBalance.toString());
+    await sourceUSDT.connect(bob).approve(sourceLinkPort.target, ethAmount);
 
-    await routeMessage(destinationRouterAddress, loanMsg);
+    tx = await sourceLinkPort.connect(bob).bridge(destinationChainSelector, sourceUSDT.target, ethAmount, [sourceUSDT.target], [100])
+    const bridgeReceipt = await tx.wait();
 
-    const bobLinkBalance = await destUSDT.balanceOf(bob.address);
-    console.log("Bob's USDT balance after loan:", bobLinkBalance.toString());
+    bridgeMsg = getEvm2EvmMessage(bridgeReceipt);
 
-    await destUSDT.connect(bob).approve(destUSDTPoolAddress, 50n * 10n ** 18n);
-
-    tx = await destinationLinkPort.connect(bob).repay(destinationChainSelector, sourceWETH.target, [destUSDT.target], [10n * 10n ** 18n]);
-    const receipt = await tx.wait();
-    const repayMsg = getEvm2EvmMessage(receipt);
-
-
-    destSnapshotId = await hre.network.provider.send("evm_snapshot");
-    await hre.network.provider.send("evm_revert", [sourceSnapshotId]);
-
-    await routeMessage(sourceRouterAddress, repayMsg);
-
-    const bobLocked  = await sourceWETHPool.lockedAmount(bob.address);
-    console.log("Bob's locked WETH after repay:", bobLocked.toString());
-    */
+    console.log("Bridge Msg", bridgeMsg);
   });
 
-  it("Should perform loan on destination chain", async function () {
+  it("Should perform loan & bridge on destination chain", async function () {
 
     await deployDestination();
 
@@ -316,5 +293,61 @@ describe("LinkPort CCIP Loan & Repay", function () {
     console.log("Bob's USDT balance after loan:", afterBalance.toString());
 
 
+    await destUSDT.connect(bob).approve(destUSDTPoolAddress, 50n * 10n ** 18n);
+
+    tx = await destinationLinkPort.connect(bob).repay(sourceChainSelector, sourceWETH.target, [destUSDT.target], [40n * 10n ** 18n]);
+    const receipt = await tx.wait();
+    repayMsg = getEvm2EvmMessage(receipt);
+    console.log("Repay Msg", repayMsg);
+    /*
+   bridgeMsg = {
+        sourceChainSelector: 16015286601757825753n,
+        sender: '0xD5f5227c83d6D25b9a8090c36372A7D567c6b64b',
+        receiver: '0x1459213733F023b55444487eE9385A8266FD0F08',
+        sequenceNumber: 7130n,
+        gasLimit: 1000000n,
+        strict: false,
+        nonce: 2n,
+        feeToken: '0x779877A7B0D9E8603169DdbD7836e478b4624789',
+        feeTokenAmount: 69671625449526031n,
+        data: '0x000000000000000000000000000000000000000000000000000000000000000300000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c800000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c800000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000140000000000000000000000000929954b91f9a9946924ce1dd58a03e1d603f7e4400000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000042d05efde772c95c48863e43478b489a250ce7c4000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000003635c9adc5dea000000000000000000000000000000000000000000000000000000000000000000000',
+        tokenAmounts: [],
+        sourceTokenData: [],
+        destTokenAmounts: [],
+        messageId: '0x1179a1d6c62a3cda6b207b3f7392a8608b729e3885e0e999e248f4ec407d0581'                                                                                                                                         
+    }
+
+    //await destinationLinkPort.test(bridgeMsg)
+    */
+
+    await routeMessage(destinationRouterAddress, bridgeMsg);
+
+    const afterBridgeBalance = await destUSDT.balanceOf(bob.address);
+    console.log("Bob's USDT balance after bridge:", afterBridgeBalance.toString());
+
   })
+
+  it("Should perform repay on source chain", async function () {
+    if (!repayMsg) {
+      throw new Error("Repay message not found. Ensure the loan was executed first.");
+    }
+    await deploySource();
+    await sourceLinkPort.setPort(destinationChainSelector, destinationLinkPort.target);
+    tx = await sourceLinkPort.connect(bob).loan(destinationChainSelector, sourceWETH.target, [destUSDT.target], [50n * 10n ** 18n], [10n * 10n ** 18n]);
+    await tx.wait();
+    const beforebobLockedBalance = await sourceWETHPool.lockedAmount(bob.address)
+
+    console.log("Bob's locked WETH before repay:", beforebobLockedBalance.toString());
+
+    //await sourceLinkPort.connect(bob).test(repayMsg);
+
+    await routeMessage(sourceRouterAddress, repayMsg);
+
+    const afterbobLockedBalance = await sourceWETHPool.lockedAmount(bob.address)
+    console.log("Bob's locked WETH after repay:", afterbobLockedBalance.toString());
+
+
+
+  })
+
 })

@@ -172,6 +172,7 @@ contract LiquidityPool is ERC20 {
 
     function loanTo(uint256 chainId,address token, uint256 tokenAmount, address to, uint256 amount) external {
         require(msg.sender == port, "Only port can call loanTo");
+        require(tokenAmount > 0, "Token amount must be greater than zero");
         accrueInterest();
         require(asset.balanceOf(address(this)) >= amount, "Insufficient pool");
 
@@ -206,7 +207,7 @@ contract LiquidityPool is ERC20 {
         return loan.interest + accrued;
     }
 
-    function repayFor(uint256 chainId, address token, address from, uint256 amount) external {
+    function repayFor(uint256 chainId, address token, address from, uint256 amount) external returns (uint256) {
         require(msg.sender == port, "Only port can call repayFrom");
         accrueInterest();
 
@@ -232,8 +233,9 @@ contract LiquidityPool is ERC20 {
         uint256 principalPaid = amount > loan.interest ? amount - loan.interest : 0;
 
         loan.interest -= interestPaid;
+        uint256 tokenAmount = 0;
         if (principalPaid > 0) {
-            uint256 tokenAmount = loan.tokenAmount * principalPaid / loan.amount; // Adjust token amount proportionally
+            tokenAmount = loan.tokenAmount * principalPaid / loan.amount; // Adjust token amount proportionally
             loan.amount -= principalPaid;
             totalLoans -= principalPaid;
             loan.tokenAmount -= tokenAmount;
@@ -252,6 +254,7 @@ contract LiquidityPool is ERC20 {
         */
 
         emit Repaid(from, principalPaid, interestPaid);
+        return tokenAmount;
     }
 
     function portWithdraw(address to, uint256 amount) external {

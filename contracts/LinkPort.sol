@@ -182,8 +182,6 @@ contract LinkPort is CCIPReceiver , Ownable{
 
         (uint8 decimals, uint256 collateralPrice) = getTokenPrice(collateralToken);
 
-        uint256[] memory tokenCollateralAmount = new uint256[](borrowTokens.length);
-
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < collateralAmount.length; i++) {
             totalAmount += collateralAmount[i];
@@ -203,11 +201,12 @@ contract LinkPort is CCIPReceiver , Ownable{
         pool.lock(msg.sender, totalAmount);
 
         // 6. Send CCIP message to target chain (pseudo-code)
-        sendCCIPMsg(chainId, 1, msg.sender, borrowTokens, borrowAmounts, collateralToken, tokenCollateralAmount, collateralValue);
+        sendCCIPMsg(chainId, 1, msg.sender, borrowTokens, borrowAmounts, collateralToken, collateralAmount, collateralValue);
     }
 
     function repay(uint64 chainId, address collateralToken, address[] calldata tokens, uint256[] calldata amounts) external {
         uint256[] memory tokenCollateralAmount = new uint256[](tokens.length);
+        uint256 totalCollateralAmount = 0;
         for (uint256 i = 0; i < tokens.length; i++) {
             LiquidityPool pool = LiquidityPool(payable(factory.getPool(tokens[i])));
             require(address(pool) != address(0), "Pool not found");
@@ -215,23 +214,27 @@ contract LinkPort is CCIPReceiver , Ownable{
             pool.repayFor(chainId, collateralToken, msg.sender, amounts[i]);
             uint256 afterCollateralAmount = pool.getLoanCollateralAmount(msg.sender, chainId, collateralToken);
             tokenCollateralAmount[i] = beforeCollateralAmount - afterCollateralAmount;
+            totalCollateralAmount += tokenCollateralAmount[i];
         }
-        sendCCIPMsg(chainId, 2, msg.sender, tokens, amounts, collateralToken, tokenCollateralAmount, 0);
+        if (totalCollateralAmount > 0) {
+            sendCCIPMsg(chainId, 2, msg.sender, tokens, amounts, collateralToken, tokenCollateralAmount, 0);
+        }
     }
 
     function repayAll(uint64 chainId, address collateralToken, address[] calldata tokens) external {
         uint256[] memory tokenCollateralAmount = new uint256[](tokens.length);
         uint256[] memory amounts = new uint256[](tokens.length);
+        uint256 totalCollateralAmount = 0;
         for (uint256 i = 0; i < tokens.length; i++) {
             LiquidityPool pool = LiquidityPool(payable(factory.getPool(tokens[i])));
             require(address(pool) != address(0), "Pool not found");
-            uint256 beforeCollateralAmount = pool.getLoanCollateralAmount(msg.sender, chainId, collateralToken);
             amounts[i] = pool.getUserInterest(msg.sender, chainId, collateralToken);
-            pool.repayFor(chainId, collateralToken, msg.sender, amounts[i]);
-            uint256 afterCollateralAmount = pool.getLoanCollateralAmount(msg.sender, chainId, collateralToken);
-            tokenCollateralAmount[i] = beforeCollateralAmount - afterCollateralAmount;
+            tokenCollateralAmount[i] = pool.repayFor(chainId, collateralToken, msg.sender, amounts[i]);
+            totalCollateralAmount += tokenCollateralAmount[i];
         }
-        sendCCIPMsg(chainId, 2, msg.sender, tokens, amounts, collateralToken, tokenCollateralAmount, 0);
+        if (totalCollateralAmount > 0) {
+            sendCCIPMsg(chainId, 2, msg.sender, tokens, amounts, collateralToken, tokenCollateralAmount, 0);
+        }
     }
 
 
@@ -268,6 +271,7 @@ contract LinkPort is CCIPReceiver , Ownable{
             chainId,
             message
         );
+
 
         LinkTokenInterface(link).approve(address(ccipRouter), fee);
 
@@ -330,14 +334,14 @@ contract LinkPort is CCIPReceiver , Ownable{
 
         if (msgType == 1) {
             require(tokens.length == amount.length, "Length mismatch");
-            uint256 tokenValues = 0;
+            uint256 totalTokenValue = 0;
 
             for (uint256 i = 0; i < tokens.length; i++) {
                 (uint8 decimals, uint256 price) = getTokenPrice(tokens[i]);
-                tokenValues += price * amount[i] / (10 ** decimals);
+                totalTokenValue += amount[i] * price / (10 ** decimals);
             }
 
-            if (tokenValues * 100 > collateralValue * 90) {
+            if (totalTokenValue * 100 > collateralValue * 90) {
                 sendCCIPMsg(
                     message.sourceChainSelector,
                     4, // Reject message type
