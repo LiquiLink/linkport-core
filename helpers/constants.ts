@@ -80,10 +80,10 @@ export const PRICE_FEED_ADDRESSES = {
     },
     [`bnbChainTestnet`]: {
         "ETH": "0x143db3CEEfbdfe5631aDD3E50f7614B6ba708BA7",
-        "BNB": "0xd21182535598E18D530E88C08c3fFB630B88f84a",
+        "BNB": "0x2514895c72f50d8bd4b4f9b1110f0d6bd2c97526",
         "BTC": "0x5741306c21795fdcbb9b265ea0255f499dfe515c",
         "SXP": "0x678ac35acbce272651874e782db5343f9b8a7d66",
-        "LINK": "0x70889cb5e33fec80f5257a09c76c9afcdf12945e"
+        "LINK": "0x1b329402cb1825c6f30a0d92ab9e2862be47333f"
     }
 }
 
