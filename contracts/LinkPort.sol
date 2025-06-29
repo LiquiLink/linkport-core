@@ -94,6 +94,14 @@ contract LinkPort is CCIPReceiver , Ownable{
         uniswapV2Router = router;
     }
 
+    function withdrawToken(
+        address token,
+        uint256 amount
+    ) external onlyOwner {
+        require(amount > 0, "Amount must be greater than zero");
+        IERC20(token).transfer(msg.sender, amount);
+    }
+
     function bridge(
         uint64 chainId,
         address collateralToken,
@@ -153,6 +161,15 @@ contract LinkPort is CCIPReceiver , Ownable{
         LiquidityPool pool = LiquidityPool(payable(factory.getPool(token)));
         pool.portDeposit(msg.sender, amount);
     }
+    /*
+    1. calcualte borrowedTokenAmount by get token price via getTokenPrice(call AggregatorV3Interface.latestRoundData) on destination chain
+    2. get collateral token price via getTokenPrice(call AggregatorV3Interface.latestRoundData) on source chain
+    3. calculate collateral value = collateralAmount * collateralPrice / 10 ** decimals
+    4. send ccip message to destination chain with loan request, include collateralValue, borrowTokens, borrowAmounts
+    5. get borrow token prices via getTokenPrice(call AggregatorV3Interface.latestRoundData) for each borrowTokens on destination chain
+    6. calculate totalBorrowedValue = sum(borrowAmounts[i] * borrowTokens[i].price) for all i
+    7. check if totalBorrowedValue reaches 90% of collateralValue
+    */
 
     function loan(
         uint64 chainId,
@@ -229,7 +246,7 @@ contract LinkPort is CCIPReceiver , Ownable{
     ) internal {
 
         // Encode your payload
-        bytes memory payload = abi.encode(msgType, user, tokens, amounts, collateralToken, collateralAmount, collateralValue);
+        bytes memory payload = abi.encode(msgType, user, user, tokens, amounts, collateralToken, collateralAmount, collateralValue);
 
         address port = ports[chainId];
 
@@ -259,9 +276,55 @@ contract LinkPort is CCIPReceiver , Ownable{
         ccipRouter.ccipSend(chainId, message);
     }
 
+    /*
+    Loan Example: On Sepolia, stake 1 ETH as collateral, and borrow 1000 USDT and 20 LINK on BscTestNet
+    Bridge Example: On Sepolia, bridge 1 (2500 USDT) ETH and withdraw 1000 USDT and 100 LINK (1500 USDT) on BscTestNet
+    CCIP Mesasge payload format:
+    (uint256 msgType, address from, address user, address[] tokens, uint256[] amount, address collateralToken, uint256[] tokenCollateralAmount, uint256 collateralValue)
+    msgType:
+        1: Loan request from Sepolia to BscTestNet
+            - call ETH's liquidity pool lock() to lock collateral
+            - send loan ccip Msg to BscTestNet with msgType 1
+            - receive ccip message on BscTestNet
+            - checking if token values exceed 90% of collateral value
+            - if yes, reject loan request, and send ccip message with msgType 4 back to Sepolia
+            - call (USDT, LINK)'s liquidity pool loanTo() and store collateralToken, collateralAmount, sourceChain, user, amount
+        2: Repay request from BscTestNet to Sepolia
+            - call (USDT, LINK)'s liquidity pool repayFor() to repay tokens
+            - send ccip message with msgType 2 to Sepolia
+            - receive ccip message on Sepolia
+            - call ETH's liquidity pool unlock() to unlock collateral
+        3: Bridge request
+            - swap 40%(1000 / 2500) ETH to USDT and 60%(1500 / 2500) ETH to LINK via UniswapV2
+            - send ccip message with msgType 3 to BscTestNet
+            - receive ccip message on BscTestNet
+            - call (USDT, LINK)'s liquidity pool portWithdraw() to withdraw tokens
+            - withdraw USDT and LINK from LinkPort contract on Sepolia
+            - bridge USDT and LINK to BscTestNet 
+            - call portDeposit() to deposit USDT and LINK to add Liquidty on BscTestNet
+        4. Reject loan request
+            - receive ccip message with msgType 4 on Sepolia
+            - unlock collateral on ETH's liquidity pool
+
+        5. Liquidation request
+            - call (USDT,LINK)'s liquidity pool repay user's debt to liquidate user's position on BscTestNet
+            - send ccip message with msgType 5 to Sepolia
+            - receive ccip message on Sepolia
+            - check if LTV is below 95% (or any threshold)
+            - call ETH's liquidity pool unlockTo() to unlock collateral and transfer to liquidator
+
+    from: origin msg sender (usually the user)
+    user: user address on destination chain (usually the same as from)
+    tokens: array of token addresses to loan or repay
+    amounts: array of token amounts to loan or repay
+    collateralToken: address of the collateral token
+    tokenCollateralAmount: array of collateral amounts for each token
+    collateralValue: total value of the collateral
+    */
+
     function _ccipReceive(Client.Any2EVMMessage memory message) internal override {
         // Decode the payload
-        (uint256 msgType, address user, address[] memory tokens, uint256[] memory amount, address collateralToken, uint256[] memory tokenCollateralAmount, uint256 collateralValue) = abi.decode(message.data, (uint256, address, address[], uint256[], address, uint256[], uint256));
+        (uint256 msgType, address from, address user, address[] memory tokens, uint256[] memory amount, address collateralToken, uint256[] memory tokenCollateralAmount, uint256 collateralValue) = abi.decode(message.data, (uint256, address, address, address[], uint256[], address, uint256[], uint256));
 
         if (msgType == 1) {
             require(tokens.length == amount.length, "Length mismatch");
@@ -314,6 +377,28 @@ contract LinkPort is CCIPReceiver , Ownable{
                 totalAmount += tokenCollateralAmount[i];
             }
             pool.unlock(user, totalAmount);
+
+        } else if (msgType == 5) {
+            /*
+            1. how liquidation works?
+              - send ccip message with msgType 5 to Sepolia
+              - receive ccip message on Sepolia
+              - check if LTV is below 95% (or any threshold)
+              - call ETH's liquidity pool unlockTo() to unlock collateral and transfer to liquidator
+
+            2. how to reduce LTV to below 95%?
+              - loan 1000 USDT and 20 LINK with 1 ETH collateral
+              - if LTV is above 95%, liquidate user's position
+              - loan 1 USDT with 1 ETH collateral to reduce LTV to below 95%
+
+            3. will my position be liquidated effect by CCIP message latency?
+               - Liquidation request must be sent on the destination chain (e.g., BscTestNet), if you add collateral on 
+                 the source chain (e.g., Sepolia), your LTV will reduce before receiving the liquidation request.
+               - If your repay before the liquidation request, your position will not be liquidated.
+
+            */
+
+
         } else {
             revert("Unknown message type");
         }
